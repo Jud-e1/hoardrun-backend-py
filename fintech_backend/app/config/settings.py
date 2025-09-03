@@ -1,0 +1,157 @@
+"""
+Application configuration using Pydantic BaseSettings for environment-based configuration.
+"""
+from typing import List, Optional
+from pydantic import Field, field_validator, ConfigDict
+from pydantic_settings import BaseSettings
+import os
+
+
+class Settings(BaseSettings):
+    """Application settings with environment variable support."""
+    
+    # Application settings
+    app_name: str = Field(default="Fintech Backend API", description="Application name")
+    app_version: str = Field(default="1.0.0", description="Application version")
+    debug: bool = Field(default=False, description="Debug mode")
+    environment: str = Field(default="development", description="Environment (development, staging, production)")
+    
+    # Server settings
+    host: str = Field(default="0.0.0.0", description="Server host")
+    port: int = Field(default=8000, description="Server port")
+    
+    # CORS settings
+    cors_origins: List[str] = Field(
+        default=["http://localhost:3000", "http://localhost:8080"], 
+        description="Allowed CORS origins"
+    )
+    cors_allow_credentials: bool = Field(default=True, description="Allow CORS credentials")
+    cors_allow_methods: List[str] = Field(default=["*"], description="Allowed CORS methods")
+    cors_allow_headers: List[str] = Field(default=["*"], description="Allowed CORS headers")
+    
+    # Logging settings
+    log_level: str = Field(default="INFO", description="Logging level")
+    log_format: str = Field(default="json", description="Log format (json or text)")
+    log_file: Optional[str] = Field(default=None, description="Log file path")
+    
+    # External service configurations
+    payment_gateway_url: str = Field(
+        default="https://mock-payment-gateway.com", 
+        description="Payment gateway API URL"
+    )
+    payment_gateway_timeout: int = Field(default=30, description="Payment gateway timeout in seconds")
+    
+    bank_api_url: str = Field(
+        default="https://mock-bank-api.com", 
+        description="Bank API URL"
+    )
+    bank_api_timeout: int = Field(default=30, description="Bank API timeout in seconds")
+    
+    market_data_url: str = Field(
+        default="https://mock-market-data.com", 
+        description="Market data provider URL"
+    )
+    market_data_timeout: int = Field(default=15, description="Market data timeout in seconds")
+    
+    mobile_money_url: str = Field(
+        default="https://mock-mobile-money.com", 
+        description="Mobile money service URL"
+    )
+    mobile_money_timeout: int = Field(default=30, description="Mobile money timeout in seconds")
+    
+    # Rate limiting settings
+    rate_limit_requests: int = Field(default=100, description="Rate limit requests per window")
+    rate_limit_window: int = Field(default=60, description="Rate limit window in seconds")
+    
+    # Cache settings
+    cache_ttl: int = Field(default=300, description="Default cache TTL in seconds")
+    exchange_rate_cache_ttl: int = Field(default=3600, description="Exchange rate cache TTL in seconds")
+    market_data_cache_ttl: int = Field(default=60, description="Market data cache TTL in seconds")
+    
+    # Business settings
+    default_currency: str = Field(default="USD", description="Default currency code")
+    supported_currencies: List[str] = Field(
+        default=["USD", "EUR", "GBP", "KES", "UGX", "TZS"], 
+        description="Supported currency codes"
+    )
+    max_transfer_amount: float = Field(default=100000.0, description="Maximum transfer amount")
+    min_transfer_amount: float = Field(default=1.0, description="Minimum transfer amount")
+    
+    # Security settings
+    request_timeout: int = Field(default=30, description="Default request timeout in seconds")
+    max_request_size: int = Field(default=1048576, description="Maximum request size in bytes (1MB)")
+    
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, v):
+        """Validate log level is one of the allowed values."""
+        allowed_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        if v.upper() not in allowed_levels:
+            raise ValueError(f"Log level must be one of: {allowed_levels}")
+        return v.upper()
+    
+    @field_validator("log_format")
+    @classmethod
+    def validate_log_format(cls, v):
+        """Validate log format is one of the allowed values."""
+        allowed_formats = ["json", "text"]
+        if v.lower() not in allowed_formats:
+            raise ValueError(f"Log format must be one of: {allowed_formats}")
+        return v.lower()
+    
+    @field_validator("environment")
+    @classmethod
+    def validate_environment(cls, v):
+        """Validate environment is one of the allowed values."""
+        allowed_envs = ["development", "staging", "production"]
+        if v.lower() not in allowed_envs:
+            raise ValueError(f"Environment must be one of: {allowed_envs}")
+        return v.lower()
+    
+    @field_validator("default_currency")
+    @classmethod
+    def validate_default_currency(cls, v):
+        """Validate default currency is a 3-letter code."""
+        if len(v) != 3 or not v.isalpha():
+            raise ValueError("Currency code must be a 3-letter alphabetic code")
+        return v.upper()
+    
+    @field_validator("supported_currencies")
+    @classmethod
+    def validate_supported_currencies(cls, v):
+        """Validate all supported currencies are 3-letter codes."""
+        for currency in v:
+            if len(currency) != 3 or not currency.isalpha():
+                raise ValueError(f"Currency code '{currency}' must be a 3-letter alphabetic code")
+        return [currency.upper() for currency in v]
+    
+    @field_validator("cors_origins")
+    @classmethod
+    def validate_cors_origins(cls, v):
+        """Validate CORS origins format."""
+        if "*" in v and len(v) > 1:
+            raise ValueError("CORS origins cannot contain '*' with other origins")
+        return v
+    
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        env_prefix="",
+    )
+
+
+# Global settings instance
+settings = Settings()
+
+
+def get_settings() -> Settings:
+    """Get application settings instance."""
+    return settings
+
+
+def reload_settings() -> Settings:
+    """Reload settings from environment variables."""
+    global settings
+    settings = Settings()
+    return settings
