@@ -1,0 +1,68 @@
+services:
+  - type: web
+    name: hoardrun-backend
+    env: python
+    buildCommand: |
+      cd fintech_backend &&
+      pip install -r requirements.txt &&
+      alembic upgrade head
+    startCommand: |
+      cd fintech_backend &&
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        fromService:
+          type: web
+          name: hoardrun-backend
+          property: port
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hoardrun-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: APP_NAME
+        value: Hoardrun Backend API
+      - key: APP_VERSION
+        value: 1.0.0
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LOG_FORMAT
+        value: json
+      - key: CORS_ORIGINS
+        value: '["https://your-frontend-domain.com", "http://localhost:3000"]'
+      - key: REDIS_URL
+        value: redis://localhost:6379/0
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 30
+      - key: DEFAULT_CURRENCY
+        value: USD
+      - key: SUPPORTED_CURRENCIES
+        value: '["USD", "EUR", "GBP", "KES", "UGX", "TZS"]'
+      - key: MAX_TRANSFER_AMOUNT
+        value: 100000.0
+      - key: MIN_TRANSFER_AMOUNT
+        value: 1.0
+      - key: RATE_LIMIT_REQUESTS
+        value: 100
+      - key: RATE_LIMIT_WINDOW
+        value: 60
+      - key: CACHE_TTL
+        value: 300
+      - key: REQUEST_TIMEOUT
+        value: 30
+      - key: MAX_REQUEST_SIZE
+        value: 1048576
+
+databases:
+  - name: hoardrun-db
+    databaseName: hoardrun
+    user: hoardrun_user
