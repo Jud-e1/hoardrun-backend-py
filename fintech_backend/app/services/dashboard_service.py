@@ -12,7 +12,8 @@ from ..repositories.mock_repository import (
     get_transactions_repository,
     get_investments_repository,
     get_notifications_repository,
-    get_cards_repository
+    get_cards_repository,
+    get_repository_manager
 )
 from ..utils.calculations import AnalyticsCalculator, RiskCalculator
 from ..utils.formatters import (
@@ -45,6 +46,10 @@ class DashboardService:
         """Get comprehensive dashboard summary for a user."""
         
         try:
+            # Ensure mock data is initialized
+            repo_manager = get_repository_manager()
+            await repo_manager.ensure_mock_data_initialized()
+            
             # Log business event
             log_business_event(
                 logger=logger,

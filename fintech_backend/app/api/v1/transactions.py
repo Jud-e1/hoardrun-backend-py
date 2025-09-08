@@ -3,22 +3,20 @@ Transaction management API endpoints.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query, Path
+from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
 import asyncio
 
 from app.models.transaction import (
-    TransactionType, TransactionStatus, TransactionDirection, MerchantCategory,
-    PaymentMethod, TransactionListRequest, TransactionSearchRequest,
-    TransactionUpdateRequest, TransactionDisputeRequest, TransactionCategorizeRequest,
-    TransactionExportRequest, TransactionListResponse, TransactionResponse,
-    TransactionSearchResponse, TransactionAnalyticsResponse, TransactionExportResponse,
-    DisputeResponse, BulkUpdateResponse, TransactionCategoryStats
+    TransactionType, TransactionStatus, TransactionCreateRequest, TransactionFilters,
+    TransactionListResponse, TransactionResponse
 )
-from app.services.transaction_service import TransactionService, get_transaction_service
+from app.services.database_transaction_service import DatabaseTransactionService
+from app.database.config import get_db
 from app.core.exceptions import (
-    ValidationError, NotFoundError, BusinessLogicError, UnauthorizedError
+    ValidationException, AccountNotFoundException, BusinessRuleViolationException, FintechException
 )
 from app.utils.response import success_response
 from app.config.logging import get_logger
@@ -28,26 +26,25 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
 
+def get_transaction_service():
+    """Dependency to get transaction service instance"""
+    return DatabaseTransactionService()
+
+
 @router.get("/", response_model=TransactionListResponse)
 async def list_transactions(
     user_id: str = Query(..., description="User ID to list transactions for"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
-    transaction_type: Optional[TransactionType] = Query(None, description="Filter by transaction type"),
-    status: Optional[TransactionStatus] = Query(None, description="Filter by status"),
-    direction: Optional[TransactionDirection] = Query(None, description="Filter by direction"),
-    merchant_category: Optional[MerchantCategory] = Query(None, description="Filter by merchant category"),
-    payment_method: Optional[PaymentMethod] = Query(None, description="Filter by payment method"),
+    transaction_type: Optional[str] = Query(None, description="Filter by transaction type"),
+    status: Optional[str] = Query(None, description="Filter by status"),
     start_date: Optional[str] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="Filter to date (YYYY-MM-DD)"),
     min_amount: Optional[float] = Query(None, ge=0, description="Minimum amount filter"),
     max_amount: Optional[float] = Query(None, gt=0, description="Maximum amount filter"),
-    search_query: Optional[str] = Query(None, description="Search in description or merchant name"),
-    tags: Optional[List[str]] = Query(None, description="Filter by tags"),
     limit: int = Query(50, ge=1, le=1000, description="Number of results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
-    sort_by: str = Query("transaction_date", description="Sort field"),
-    sort_order: str = Query("desc", description="Sort order (asc, desc)"),
-    transaction_service: TransactionService = Depends(get_transaction_service)
+    db: Session = Depends(get_db),
+    transaction_service: DatabaseTransactionService = Depends(get_transaction_service)
 ):
     """
     List transactions with comprehensive filtering and pagination.
@@ -74,37 +71,36 @@ async def list_transactions(
             except ValueError:
                 raise HTTPException(status_code=422, detail="Invalid end_date format. Use YYYY-MM-DD")
         
-        # Create request object
-        request = TransactionListRequest(
+        # Create filters object
+        filters = TransactionFilters(
             account_id=account_id,
             transaction_type=transaction_type,
             status=status,
-            direction=direction,
-            merchant_category=merchant_category,
-            payment_method=payment_method,
             start_date=parsed_start_date,
             end_date=parsed_end_date,
-            min_amount=Decimal(str(min_amount)) if min_amount is not None else None,
-            max_amount=Decimal(str(max_amount)) if max_amount is not None else None,
-            search_query=search_query,
-            tags=tags,
+            min_amount=min_amount,
+            max_amount=max_amount,
             limit=limit,
-            offset=offset,
-            sort_by=sort_by,
-            sort_order=sort_order
+            offset=offset
         )
         
-        result = await transaction_service.list_transactions(user_id, request)
+        transactions = transaction_service.get_user_transactions(user_id, filters, db)
+        
+        result = {
+            "transactions": transactions,
+            "total_count": len(transactions),
+            "has_more": len(transactions) == limit
+        }
         
         return success_response(
             data=result,
-            message=f"Retrieved {len(result['transactions'])} transactions"
+            message=f"Retrieved {len(transactions)} transactions"
         )
         
-    except NotFoundError as e:
+    except AccountNotFoundException as e:
         logger.error(f"User not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    except ValidationError as e:
+    except ValidationException as e:
         logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
@@ -116,7 +112,8 @@ async def list_transactions(
 async def get_transaction(
     transaction_id: str = Path(..., description="Transaction ID"),
     user_id: str = Query(..., description="User ID"),
-    transaction_service: TransactionService = Depends(get_transaction_service)
+    db: Session = Depends(get_db),
+    transaction_service: DatabaseTransactionService = Depends(get_transaction_service)
 ):
     """
     Get detailed information for a specific transaction.
@@ -127,17 +124,17 @@ async def get_transaction(
     try:
         logger.info(f"API: Getting transaction details for {transaction_id}")
         
-        transaction = await transaction_service.get_transaction_details(transaction_id, user_id)
+        transaction = transaction_service.get_transaction_by_id(transaction_id, user_id, db)
         
         return success_response(
             data={"transaction": transaction},
             message="Transaction details retrieved successfully"
         )
         
-    except NotFoundError as e:
+    except AccountNotFoundException as e:
         logger.error(f"Transaction not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
+    except FintechException as e:
         logger.error(f"Unauthorized access: {e}")
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -145,216 +142,110 @@ async def get_transaction(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/search", response_model=TransactionSearchResponse)
-async def search_transactions(
+@router.post("/", response_model=TransactionResponse)
+async def create_transaction(
     user_id: str = Query(..., description="User ID"),
-    request: TransactionSearchRequest = ...,
-    transaction_service: TransactionService = Depends(get_transaction_service)
+    request: TransactionCreateRequest = ...,
+    db: Session = Depends(get_db),
+    transaction_service: DatabaseTransactionService = Depends(get_transaction_service)
 ):
     """
-    Advanced search for transactions with fuzzy matching.
+    Create a new transaction.
     
-    Performs intelligent search across transaction fields with
-    optional fuzzy matching and additional filtering.
+    Creates a new transaction and updates the associated account balance.
     """
     try:
-        logger.info(f"API: Searching transactions for user {user_id}")
+        logger.info(f"API: Creating transaction for user {user_id}")
         
-        result = await transaction_service.search_transactions(user_id, request)
-        
-        return success_response(
-            data=result,
-            message=f"Found {result['total_matches']} matching transactions"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"User not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValidationError as e:
-        logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error searching transactions: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.patch("/{transaction_id}", response_model=TransactionResponse)
-async def update_transaction(
-    transaction_id: str = Path(..., description="Transaction ID"),
-    user_id: str = Query(..., description="User ID"),
-    request: TransactionUpdateRequest = ...,
-    transaction_service: TransactionService = Depends(get_transaction_service)
-):
-    """
-    Update transaction details (user-editable fields only).
-    
-    Updates user-controllable transaction fields such as
-    description, category, tags, and personal notes.
-    """
-    try:
-        logger.info(f"API: Updating transaction {transaction_id}")
-        
-        transaction = await transaction_service.update_transaction(transaction_id, user_id, request)
+        transaction = transaction_service.create_transaction(user_id, request, db)
         
         return success_response(
             data={"transaction": transaction},
-            message="Transaction updated successfully"
+            message="Transaction created successfully"
         )
         
-    except NotFoundError as e:
-        logger.error(f"Transaction not found: {e}")
+    except AccountNotFoundException as e:
+        logger.error(f"Resource not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
-        logger.error(f"Unauthorized access: {e}")
-        raise HTTPException(status_code=403, detail=str(e))
-    except BusinessLogicError as e:
-        logger.error(f"Business logic error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except ValidationError as e:
+    except ValidationException as e:
         logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error updating transaction: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.post("/categorize", response_model=BulkUpdateResponse)
-async def categorize_transactions(
-    user_id: str = Query(..., description="User ID"),
-    request: TransactionCategorizeRequest = ...,
-    transaction_service: TransactionService = Depends(get_transaction_service)
-):
-    """
-    Batch categorize multiple transactions.
-    
-    Updates the merchant category for multiple transactions
-    with optional automatic categorization of similar transactions.
-    """
-    try:
-        logger.info(f"API: Bulk categorizing transactions for user {user_id}")
-        
-        result = await transaction_service.categorize_transactions(user_id, request)
-        
-        return success_response(
-            data=result,
-            message=f"Categorized {result['updated_count']} transactions successfully"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"Transaction not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
-        logger.error(f"Unauthorized access: {e}")
-        raise HTTPException(status_code=403, detail=str(e))
-    except ValidationError as e:
-        logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error categorizing transactions: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.post("/{transaction_id}/dispute", response_model=DisputeResponse)
-async def dispute_transaction(
-    transaction_id: str = Path(..., description="Transaction ID"),
-    user_id: str = Query(..., description="User ID"),
-    request: TransactionDisputeRequest = ...,
-    transaction_service: TransactionService = Depends(get_transaction_service)
-):
-    """
-    Initiate a dispute for a transaction.
-    
-    Creates a dispute case for unauthorized or incorrect transactions
-    within the allowed dispute window.
-    """
-    try:
-        logger.info(f"API: Initiating dispute for transaction {transaction_id}")
-        
-        result = await transaction_service.dispute_transaction(transaction_id, user_id, request)
-        
-        return success_response(
-            data=result,
-            message="Dispute initiated successfully"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"Transaction not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
-        logger.error(f"Unauthorized access: {e}")
-        raise HTTPException(status_code=403, detail=str(e))
-    except BusinessLogicError as e:
+    except BusinessRuleViolationException as e:
         logger.error(f"Business logic error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error initiating dispute: {e}")
+        logger.error(f"Error creating transaction: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/analytics", response_model=TransactionAnalyticsResponse)
-async def get_transaction_analytics(
+@router.get("/account/{account_id}", response_model=TransactionListResponse)
+async def get_account_transactions(
+    account_id: str = Path(..., description="Account ID"),
+    user_id: str = Query(..., description="User ID"),
+    limit: int = Query(50, ge=1, le=1000, description="Number of results to return"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+    db: Session = Depends(get_db),
+    transaction_service: DatabaseTransactionService = Depends(get_transaction_service)
+):
+    """
+    Get transactions for a specific account.
+    
+    Returns all transactions for the specified account with pagination.
+    """
+    try:
+        logger.info(f"API: Getting transactions for account {account_id}")
+        
+        transactions = transaction_service.get_account_transactions(account_id, user_id, limit, offset, db)
+        
+        result = {
+            "transactions": transactions,
+            "total_count": len(transactions),
+            "has_more": len(transactions) == limit
+        }
+        
+        return success_response(
+            data=result,
+            message=f"Retrieved {len(transactions)} transactions for account"
+        )
+        
+    except AccountNotFoundException as e:
+        logger.error(f"Account not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except FintechException as e:
+        logger.error(f"Unauthorized access: {e}")
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting account transactions: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/summary", response_model=dict)
+async def get_transaction_summary(
     user_id: str = Query(..., description="User ID"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
-    days: int = Query(90, ge=1, le=365, description="Analysis period in days"),
-    transaction_service: TransactionService = Depends(get_transaction_service)
+    db: Session = Depends(get_db),
+    transaction_service: DatabaseTransactionService = Depends(get_transaction_service)
 ):
     """
-    Get comprehensive transaction analytics.
+    Get transaction summary statistics.
     
-    Returns detailed analytics including spending patterns,
-    category breakdowns, trends, and merchant analysis.
+    Returns comprehensive summary including totals, counts, and breakdowns.
     """
     try:
-        logger.info(f"API: Getting transaction analytics for user {user_id}")
+        logger.info(f"API: Getting transaction summary for user {user_id}")
         
-        result = await transaction_service.get_transaction_analytics(user_id, account_id, days)
+        summary = transaction_service.get_transaction_summary(user_id, account_id, db)
         
         return success_response(
-            data=result,
-            message="Transaction analytics retrieved successfully"
+            data=summary,
+            message="Transaction summary retrieved successfully"
         )
         
-    except NotFoundError as e:
+    except AccountNotFoundException as e:
         logger.error(f"User or account not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
-        logger.error(f"Unauthorized access: {e}")
-        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        logger.error(f"Error getting transaction analytics: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.post("/export", response_model=TransactionExportResponse)
-async def export_transactions(
-    user_id: str = Query(..., description="User ID"),
-    request: TransactionExportRequest = ...,
-    transaction_service: TransactionService = Depends(get_transaction_service)
-):
-    """
-    Export transactions to various formats.
-    
-    Creates an export job and returns download information
-    for transactions in CSV, JSON, or PDF format.
-    """
-    try:
-        logger.info(f"API: Exporting transactions for user {user_id}")
-        
-        result = await transaction_service.export_transactions(user_id, request)
-        
-        return success_response(
-            data=result,
-            message="Export created successfully"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"User not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValidationError as e:
-        logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error exporting transactions: {e}")
+        logger.error(f"Error getting transaction summary: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -363,7 +254,8 @@ async def get_recent_transactions(
     user_id: str = Query(..., description="User ID"),
     limit: int = Query(10, ge=1, le=100, description="Number of recent transactions"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
-    transaction_service: TransactionService = Depends(get_transaction_service)
+    db: Session = Depends(get_db),
+    transaction_service: DatabaseTransactionService = Depends(get_transaction_service)
 ):
     """
     Get most recent transactions for quick access.
@@ -374,72 +266,31 @@ async def get_recent_transactions(
     try:
         logger.info(f"API: Getting recent transactions for user {user_id}")
         
-        transactions = await transaction_service.get_recent_transactions(user_id, limit, account_id)
-        
-        # Create minimal summary for recent transactions
-        total_amount = sum(abs(t.amount) for t in transactions)
-        credits = sum(t.amount for t in transactions if t.amount > 0)
-        debits = abs(sum(t.amount for t in transactions if t.amount < 0))
-        
-        from app.models.transaction import TransactionSummary
-        summary = TransactionSummary(
-            period_start=min(t.transaction_date.date() for t in transactions) if transactions else datetime.now().date(),
-            period_end=max(t.transaction_date.date() for t in transactions) if transactions else datetime.now().date(),
-            total_transactions=len(transactions),
-            total_amount=total_amount,
-            total_credits=credits,
-            total_debits=debits
+        # Create filters for recent transactions
+        filters = TransactionFilters(
+            account_id=account_id,
+            limit=limit,
+            offset=0
         )
         
+        transactions = transaction_service.get_user_transactions(user_id, filters, db)
+        
+        result = {
+            "transactions": transactions,
+            "total_count": len(transactions),
+            "has_more": False
+        }
+        
         return success_response(
-            data={
-                "transactions": transactions,
-                "total_count": len(transactions),
-                "summary": summary,
-                "has_more": False
-            },
+            data=result,
             message=f"Retrieved {len(transactions)} recent transactions"
         )
         
-    except NotFoundError as e:
+    except AccountNotFoundException as e:
         logger.error(f"User not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error getting recent transactions: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.get("/categories/spending", response_model=List[TransactionCategoryStats])
-async def get_spending_by_category(
-    user_id: str = Query(..., description="User ID"),
-    account_id: Optional[str] = Query(None, description="Filter by account ID"),
-    days: int = Query(30, ge=1, le=365, description="Analysis period in days"),
-    transaction_service: TransactionService = Depends(get_transaction_service)
-):
-    """
-    Get spending breakdown by merchant category.
-    
-    Returns detailed statistics for each spending category
-    including amounts, percentages, and transaction counts.
-    """
-    try:
-        logger.info(f"API: Getting spending by category for user {user_id}")
-        
-        category_stats = await transaction_service.get_spending_by_category(user_id, account_id, days)
-        
-        return success_response(
-            data=category_stats,
-            message="Category spending statistics retrieved successfully"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"User not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
-        logger.error(f"Unauthorized access: {e}")
-        raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error getting category spending: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

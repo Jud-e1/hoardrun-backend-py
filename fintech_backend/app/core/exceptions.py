@@ -208,3 +208,89 @@ class BusinessRuleViolationException(FintechException):
             status_code=400,
             details=details
         )
+
+
+class AuthenticationException(FintechException):
+    """Exception for authentication failures."""
+    
+    def __init__(self, message: str = "Authentication failed"):
+        super().__init__(
+            message=message,
+            error_code="AUTHENTICATION_FAILED",
+            status_code=401
+        )
+
+
+class AuthorizationException(FintechException):
+    """Exception for authorization failures."""
+    
+    def __init__(self, message: str = "Access denied"):
+        super().__init__(
+            message=message,
+            error_code="ACCESS_DENIED",
+            status_code=403
+        )
+
+
+class UserNotFoundException(FintechException):
+    """Exception for user not found scenarios."""
+    
+    def __init__(self, user_identifier: str):
+        message = f"User not found: {user_identifier}"
+        details = {"user_identifier": user_identifier}
+        super().__init__(
+            message=message,
+            error_code="USER_NOT_FOUND",
+            status_code=404,
+            details=details
+        )
+
+
+class EmailAlreadyExistsException(FintechException):
+    """Exception for duplicate email registration."""
+    
+    def __init__(self, email: str):
+        message = f"Email address {email} is already registered"
+        details = {"email": email}
+        super().__init__(
+            message=message,
+            error_code="EMAIL_ALREADY_EXISTS",
+            status_code=409,
+            details=details
+        )
+
+
+class TokenExpiredException(FintechException):
+    """Exception for expired tokens."""
+    
+    def __init__(self, token_type: str = "token"):
+        message = f"The {token_type} has expired"
+        details = {"token_type": token_type}
+        super().__init__(
+            message=message,
+            error_code="TOKEN_EXPIRED",
+            status_code=401,
+            details=details
+        )
+
+
+class InvalidTokenException(FintechException):
+    """Exception for invalid tokens."""
+    
+    def __init__(self, token_type: str = "token"):
+        message = f"The {token_type} is invalid"
+        details = {"token_type": token_type}
+        super().__init__(
+            message=message,
+            error_code="INVALID_TOKEN",
+            status_code=401,
+            details=details
+        )
+
+
+# Aliases for common exception names
+NotFoundError = TransactionNotFoundException
+ValidationError = ValidationException
+BusinessLogicError = BusinessRuleViolationException
+ConflictError = EmailAlreadyExistsException
+AuthenticationError = AuthenticationException

@@ -3,22 +3,10 @@ Base Pydantic models with common fields and configurations.
 """
 from datetime import datetime, UTC
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Generic, TypeVar, List
 from pydantic import BaseModel as PydanticBaseModel, Field, ConfigDict
 
-
-class BaseModel(PydanticBaseModel):
-    """Base model with common fields for all entities."""
-    
-    model_config = ConfigDict(
-        use_enum_values=True,
-        validate_assignment=True,
-        populate_by_name=True
-    )
-    
-    id: Optional[str] = Field(None, description="Unique identifier")
-    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
-    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+T = TypeVar('T')
 
 
 class BaseRequest(PydanticBaseModel):
@@ -43,9 +31,38 @@ class BaseResponse(PydanticBaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Response timestamp")
 
 
-class PaginatedResponse(BaseResponse):
+class TimestampMixin:
+    """Mixin for models that need timestamp fields."""
+    
+    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+
+
+class BaseModel(PydanticBaseModel):
+    """Base model with common fields for all entities."""
+    
+    model_config = ConfigDict(
+        use_enum_values=True,
+        validate_assignment=True,
+        populate_by_name=True
+    )
+    
+    id: Optional[str] = Field(None, description="Unique identifier")
+    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+
+
+class PaginationRequest(BaseRequest):
+    """Base model for pagination requests."""
+    
+    page: int = Field(1, ge=1, description="Current page number")
+    page_size: int = Field(20, ge=1, le=100, description="Number of items per page")
+
+
+class PaginatedResponse(BaseResponse, Generic[T]):
     """Base model for paginated responses."""
     
+    data: List[T] = Field(..., description="List of items")
     page: int = Field(1, ge=1, description="Current page number")
     page_size: int = Field(20, ge=1, le=100, description="Number of items per page")
     total_items: int = Field(0, ge=0, description="Total number of items")
@@ -60,6 +77,13 @@ class PaginatedResponse(BaseResponse):
     def has_previous(self) -> bool:
         """Check if there are previous pages."""
         return self.page > 1
+
+
+class SuccessResponse(BaseResponse):
+    """Model for success responses."""
+    
+    status: str = Field(default="success", description="Success status")
+    success: bool = Field(default=True, description="Success indicator")
 
 
 class ErrorResponse(BaseResponse):
