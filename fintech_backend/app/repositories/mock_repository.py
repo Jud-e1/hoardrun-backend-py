@@ -221,13 +221,14 @@ class RepositoryManager:
         self.settings = UserMockRepository()
         self.watchlist = UserMockRepository()
         
-        # Initialize with mock data
-        self._initialize_mock_data()
+        # Flag to track if mock data has been initialized
+        self._mock_data_initialized = False
     
-    def _initialize_mock_data(self):
-        """Initialize repositories with realistic mock data."""
-        import asyncio
-        asyncio.run(self._setup_mock_data())
+    async def ensure_mock_data_initialized(self):
+        """Ensure mock data is initialized (lazy initialization)."""
+        if not self._mock_data_initialized:
+            await self._setup_mock_data()
+            self._mock_data_initialized = True
     
     async def _setup_mock_data(self):
         """Setup realistic mock data for all entities."""

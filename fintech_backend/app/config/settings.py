@@ -81,6 +81,34 @@ class Settings(BaseSettings):
     request_timeout: int = Field(default=30, description="Default request timeout in seconds")
     max_request_size: int = Field(default=1048576, description="Maximum request size in bytes (1MB)")
     
+    # Database settings
+    database_url: str = Field(
+        default="sqlite:///./fintech.db", 
+        description="Database connection URL"
+    )
+    
+    # Redis settings
+    redis_url: str = Field(
+        default="redis://localhost:6379/0", 
+        description="Redis connection URL"
+    )
+    
+    # Security settings (JWT)
+    secret_key: str = Field(
+        default="your-secret-key-here", 
+        description="Secret key for JWT token generation"
+    )
+    algorithm: str = Field(default="HS256", description="JWT algorithm")
+    access_token_expire_minutes: int = Field(
+        default=30, 
+        description="Access token expiration time in minutes"
+    )
+    
+    # API settings
+    api_v1_prefix: str = Field(default="/api/v1", description="API v1 prefix")
+    docs_url: str = Field(default="/docs", description="Swagger docs URL")
+    redoc_url: str = Field(default="/redoc", description="ReDoc URL")
+    
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v):

@@ -3,12 +3,12 @@ Money transfer models for the fintech backend.
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 
-from app.models.base import BaseResponse, TimestampMixin
+from app.models.base import BaseResponse, BaseModel as AppBaseModel
 
 
 class TransferType(str, Enum):
@@ -75,7 +75,7 @@ class CountryCode(str, Enum):
     EG = "EG"
 
 
-class Beneficiary(BaseModel, TimestampMixin):
+class Beneficiary(BaseModel):
     """Beneficiary model for money transfers."""
     beneficiary_id: str = Field(..., description="Unique beneficiary identifier")
     user_id: str = Field(..., description="Owner user ID")
@@ -186,7 +186,7 @@ class TransferQuote(BaseModel):
         return v
 
 
-class MoneyTransfer(BaseModel, TimestampMixin):
+class MoneyTransfer(BaseModel):
     """Money transfer model representing an external transfer."""
     transfer_id: str = Field(..., description="Unique transfer identifier")
     user_id: str = Field(..., description="Sender user ID")
@@ -304,6 +304,17 @@ class TransferQuoteRequest(BaseModel):
     destination_currency: str = Field(..., description="Destination currency")
     transfer_type: TransferType = Field(..., description="Type of transfer")
     priority: TransferPriority = Field(default=TransferPriority.STANDARD, description="Transfer priority")
+
+
+class TransferCreateRequest(BaseModel):
+    """Request model for creating a money transfer."""
+    source_account_id: str = Field(..., description="Source account ID")
+    destination_account_id: str = Field(..., description="Destination account ID")
+    amount: float = Field(..., gt=0, description="Transfer amount")
+    currency: str = Field(default="USD", description="Currency code")
+    description: Optional[str] = Field(None, max_length=200, description="Transfer description")
+    reference: Optional[str] = Field(None, max_length=50, description="User reference")
+    transfer_type: TransferType = Field(default=TransferType.INSTANT_TRANSFER, description="Type of transfer")
 
 
 class TransferInitiateRequest(BaseModel):

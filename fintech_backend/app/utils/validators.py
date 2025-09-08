@@ -3,7 +3,7 @@ Custom validators for financial data validation.
 """
 import re
 from decimal import Decimal, InvalidOperation
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, date
 
 from pydantic import field_validator, ValidationError

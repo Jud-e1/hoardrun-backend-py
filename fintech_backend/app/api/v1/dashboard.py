@@ -2,9 +2,10 @@
 Dashboard API endpoints for financial summaries, analytics, and notifications.
 """
 from typing import Optional, List
-from fastapi import APIRouter, Depends, Query, HTTPException, Body
+from fastapi import APIRouter, Depends, Query, HTTPException, Body, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from datetime import datetime, UTC
 
 from ...models.dashboard import (
     DashboardSummaryResponse,
@@ -31,6 +32,7 @@ limiter = get_rate_limiter()
 )
 @limiter.limit("30/minute")
 async def get_dashboard_summary(
+    request: Request,
     user_id: str,
     include_pending: bool = Query(default=True, description="Include pending transactions"),
     date_range_days: int = Query(default=30, ge=1, le=365, description="Date range for recent data"),
@@ -72,6 +74,7 @@ async def get_dashboard_summary(
 )
 @limiter.limit("20/minute")
 async def get_spending_analytics(
+    request: Request,
     user_id: str,
     period_days: int = Query(default=30, ge=1, le=365, description="Analysis period in days"),
     category_filter: Optional[str] = Query(default=None, description="Comma-separated list of categories to filter"),
@@ -121,6 +124,7 @@ async def get_spending_analytics(
 )
 @limiter.limit("40/minute")
 async def get_notifications(
+    request: Request,
     user_id: str,
     unread_only: bool = Query(default=False, description="Return only unread notifications"),
     notification_type: Optional[NotificationType] = Query(default=None, description="Filter by notification type"),
@@ -165,8 +169,9 @@ async def get_notifications(
 )
 @limiter.limit("20/minute")
 async def mark_notifications_read(
+    request: Request,
     user_id: str,
-    request: NotificationMarkReadRequest = Body(..., description="Notification IDs to mark as read"),
+    request_body: NotificationMarkReadRequest = Body(..., description="Notification IDs to mark as read"),
     dashboard_service = Depends(get_dashboard_service)
 ):
     """
@@ -184,7 +189,7 @@ async def mark_notifications_read(
         # Mark notifications as read
         result = await dashboard_service.mark_notifications_read(
             user_id=validated_user_id,
-            notification_ids=request.notification_ids
+            notification_ids=request_body.notification_ids
         )
         
         return result

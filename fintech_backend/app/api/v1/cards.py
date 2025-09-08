@@ -3,19 +3,21 @@ Card management API endpoints.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Query, Path
+from sqlalchemy.orm import Session
 from typing import Optional, List
 import asyncio
 
-from app.models.card import (
+from app.models.flat_card import (
     Card, CardType, CardStatus, CardCreateRequest, CardUpdateRequest,
-    CardStatusRequest, CardLimitRequest, CardPinChangeRequest,
+    CardActivationRequest, CardPinChangeRequest, CardLimitRequest,
     CardListResponse, CardResponse, CardCreatedResponse, 
-    CardLimitsResponse, CardUsageResponse
+    CardActivationResponse, CardTransactionResponse
 )
-from app.services.card_service import CardService, get_card_service
+from app.services.database_card_service import DatabaseCardService
+from app.database.config import get_db
 from app.core.exceptions import (
-    ValidationError, NotFoundError, BusinessLogicError,
-    UnauthorizedError, InsufficientFundsError
+    ValidationException, CardNotFoundException, BusinessRuleViolationException,
+    FintechException, InsufficientFundsException
 )
 from app.utils.response import success_response
 from app.config.logging import get_logger
@@ -25,13 +27,19 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/cards", tags=["Cards"])
 
 
+def get_card_service():
+    """Dependency to get card service instance"""
+    return DatabaseCardService()
+
+
 @router.get("/", response_model=CardListResponse)
 async def list_cards(
     user_id: str = Query(..., description="User ID to list cards for"),
     card_type: Optional[CardType] = Query(None, description="Filter by card type"),
     status: Optional[CardStatus] = Query(None, description="Filter by card status"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
-    card_service: CardService = Depends(get_card_service)
+    db: Session = Depends(get_db),
+    card_service: DatabaseCardService = Depends(get_card_service)
 ):
     """
     List all cards for a user with optional filtering.
@@ -42,12 +50,15 @@ async def list_cards(
     try:
         logger.info(f"API: Listing cards for user {user_id}")
         
-        cards = await card_service.list_user_cards(
-            user_id=user_id,
-            card_type=card_type,
-            status=status,
-            account_id=account_id
-        )
+        cards = card_service.get_user_cards(user_id, db)
+        
+        # Apply filters if provided
+        if card_type:
+            cards = [card for card in cards if card.card_type == card_type.value]
+        if status:
+            cards = [card for card in cards if card.status == status.value]
+        if account_id:
+            cards = [card for card in cards if card.account_id == account_id]
         
         return success_response(
             data={
@@ -57,7 +68,7 @@ async def list_cards(
             message=f"Retrieved {len(cards)} cards successfully"
         )
         
-    except NotFoundError as e:
+    except CardNotFoundException as e:
         logger.error(f"User not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -69,7 +80,8 @@ async def list_cards(
 async def get_card(
     card_id: str = Path(..., description="Card ID"),
     user_id: str = Query(..., description="User ID"),
-    card_service: CardService = Depends(get_card_service)
+    db: Session = Depends(get_db),
+    card_service: DatabaseCardService = Depends(get_card_service)
 ):
     """
     Get detailed information for a specific card.
@@ -80,17 +92,17 @@ async def get_card(
     try:
         logger.info(f"API: Getting card details for {card_id}")
         
-        card = await card_service.get_card_details(card_id, user_id)
+        card = card_service.get_card_by_id(card_id, user_id, db)
         
         return success_response(
             data={"card": card},
             message="Card details retrieved successfully"
         )
         
-    except NotFoundError as e:
+    except CardNotFoundException as e:
         logger.error(f"Card not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
+    except FintechException as e:
         logger.error(f"Unauthorized access: {e}")
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -102,7 +114,8 @@ async def get_card(
 async def create_card(
     user_id: str = Query(..., description="User ID"),
     request: CardCreateRequest = ...,
-    card_service: CardService = Depends(get_card_service)
+    db: Session = Depends(get_db),
+    card_service: DatabaseCardService = Depends(get_card_service)
 ):
     """
     Create a new payment card.
@@ -113,26 +126,29 @@ async def create_card(
     try:
         logger.info(f"API: Creating card for user {user_id}")
         
-        result = await card_service.create_card(user_id, request)
+        card = card_service.create_card(user_id, request, db)
+        
+        # Estimate delivery time (mock data)
+        delivery_estimate = "5-7 business days"
         
         return success_response(
             data={
-                "card": result["card"],
-                "delivery_estimate": result["delivery_estimate"]
+                "card": card,
+                "delivery_estimate": delivery_estimate
             },
             message="Card created successfully"
         )
         
-    except NotFoundError as e:
+    except CardNotFoundException as e:
         logger.error(f"Resource not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
+    except FintechException as e:
         logger.error(f"Unauthorized access: {e}")
         raise HTTPException(status_code=403, detail=str(e))
-    except BusinessLogicError as e:
+    except BusinessRuleViolationException as e:
         logger.error(f"Business logic error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-    except ValidationError as e:
+    except ValidationException as e:
         logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
@@ -145,7 +161,8 @@ async def update_card(
     card_id: str = Path(..., description="Card ID"),
     user_id: str = Query(..., description="User ID"),
     request: CardUpdateRequest = ...,
-    card_service: CardService = Depends(get_card_service)
+    db: Session = Depends(get_db),
+    card_service: DatabaseCardService = Depends(get_card_service)
 ):
     """
     Update card settings and preferences.
@@ -156,227 +173,27 @@ async def update_card(
     try:
         logger.info(f"API: Updating card {card_id}")
         
-        card = await card_service.update_card_settings(card_id, user_id, request)
+        card = card_service.update_card(card_id, user_id, request, db)
         
         return success_response(
             data={"card": card},
             message="Card updated successfully"
         )
         
-    except NotFoundError as e:
+    except CardNotFoundException as e:
         logger.error(f"Card not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
+    except FintechException as e:
         logger.error(f"Unauthorized access: {e}")
         raise HTTPException(status_code=403, detail=str(e))
-    except BusinessLogicError as e:
+    except BusinessRuleViolationException as e:
         logger.error(f"Business logic error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-    except ValidationError as e:
+    except ValidationException as e:
         logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Error updating card: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.patch("/{card_id}/status", response_model=CardResponse)
-async def change_card_status(
-    card_id: str = Path(..., description="Card ID"),
-    user_id: str = Query(..., description="User ID"),
-    request: CardStatusRequest = ...,
-    card_service: CardService = Depends(get_card_service)
-):
-    """
-    Change card status (freeze, unfreeze, block, cancel).
-    
-    Updates the card status to control transaction authorization.
-    Valid transitions depend on current status.
-    """
-    try:
-        logger.info(f"API: Changing status for card {card_id} to {request.status}")
-        
-        card = await card_service.change_card_status(card_id, user_id, request)
-        
-        return success_response(
-            data={"card": card},
-            message=f"Card status changed to {request.status} successfully"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"Card not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
-        logger.error(f"Unauthorized access: {e}")
-        raise HTTPException(status_code=403, detail=str(e))
-    except BusinessLogicError as e:
-        logger.error(f"Business logic error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error changing card status: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-
-
-@router.get("/{card_id}/limits", response_model=CardLimitsResponse)
-async def get_card_limits(
-    card_id: str = Path(..., description="Card ID"),
-    user_id: str = Query(..., description="User ID"),
-    card_service: CardService = Depends(get_card_service)
-):
-    """
-    Get card spending limits and current usage.
-    
-    Returns all configured spending limits with current usage
-    and remaining amounts for each limit type.
-    """
-    try:
-        logger.info(f"API: Getting limits for card {card_id}")
-        
-        result = await card_service.get_card_limits(card_id, user_id)
-        
-        return success_response(
-            data={
-                "limits": result["limits"],
-                "remaining_limits": result["remaining_limits"]
-            },
-            message="Card limits retrieved successfully"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"Card not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
-        logger.error(f"Unauthorized access: {e}")
-        raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error getting card limits: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.post("/{card_id}/limits", response_model=CardLimitsResponse)
-async def set_card_limit(
-    card_id: str = Path(..., description="Card ID"),
-    user_id: str = Query(..., description="User ID"),
-    request: CardLimitRequest = ...,
-    card_service: CardService = Depends(get_card_service)
-):
-    """
-    Set or update a card spending limit.
-    
-    Creates or updates a spending limit for specific transaction
-    types and time periods.
-    """
-    try:
-        logger.info(f"API: Setting limit for card {card_id}")
-        
-        limits = await card_service.set_card_limit(card_id, user_id, request)
-        
-        # Calculate remaining limits
-        remaining_limits = {}
-        for limit in limits:
-            if limit.is_enabled:
-                key = f"{limit.transaction_type}_{limit.period}"
-                remaining = max(limit.limit_amount - limit.current_usage, 0)
-                remaining_limits[key] = remaining
-        
-        return success_response(
-            data={
-                "limits": limits,
-                "remaining_limits": remaining_limits
-            },
-            message="Card limit set successfully"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"Card not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
-        logger.error(f"Unauthorized access: {e}")
-        raise HTTPException(status_code=403, detail=str(e))
-    except BusinessLogicError as e:
-        logger.error(f"Business logic error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except ValidationError as e:
-        logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error setting card limit: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.post("/{card_id}/pin", response_model=dict)
-async def change_pin(
-    card_id: str = Path(..., description="Card ID"),
-    user_id: str = Query(..., description="User ID"),
-    request: CardPinChangeRequest = ...,
-    card_service: CardService = Depends(get_card_service)
-):
-    """
-    Change card PIN.
-    
-    Updates the card PIN after validating the current PIN.
-    Requires current PIN for security.
-    """
-    try:
-        logger.info(f"API: Changing PIN for card {card_id}")
-        
-        success = await card_service.change_pin(card_id, user_id, request)
-        
-        return success_response(
-            data={"success": success},
-            message="PIN changed successfully"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"Card not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
-        logger.error(f"Unauthorized or incorrect PIN: {e}")
-        raise HTTPException(status_code=401, detail=str(e))
-    except BusinessLogicError as e:
-        logger.error(f"Business logic error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except ValidationError as e:
-        logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error changing PIN: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.get("/{card_id}/usage", response_model=CardUsageResponse)
-async def get_card_usage(
-    card_id: str = Path(..., description="Card ID"),
-    user_id: str = Query(..., description="User ID"),
-    days: int = Query(30, ge=1, le=365, description="Number of days to analyze"),
-    card_service: CardService = Depends(get_card_service)
-):
-    """
-    Get card usage analytics and spending patterns.
-    
-    Returns detailed analytics including transaction summaries,
-    spending by category, and usage patterns over the specified period.
-    """
-    try:
-        logger.info(f"API: Getting usage analytics for card {card_id}")
-        
-        analytics = await card_service.get_card_usage_analytics(card_id, user_id, days)
-        
-        return success_response(
-            data=analytics,
-            message="Card usage analytics retrieved successfully"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"Card not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
-        logger.error(f"Unauthorized access: {e}")
-        raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error getting card usage: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -386,7 +203,8 @@ async def freeze_card_endpoint(
     card_id: str = Path(..., description="Card ID"),
     user_id: str = Query(..., description="User ID"),
     reason: Optional[str] = Query("User requested", description="Reason for freezing"),
-    card_service: CardService = Depends(get_card_service)
+    db: Session = Depends(get_db),
+    card_service: DatabaseCardService = Depends(get_card_service)
 ):
     """
     Freeze a card to prevent all transactions.
@@ -397,20 +215,20 @@ async def freeze_card_endpoint(
     try:
         logger.info(f"API: Freezing card {card_id}")
         
-        card = await card_service.freeze_card(card_id, user_id, reason)
+        card = card_service.block_card(card_id, user_id, db)
         
         return success_response(
             data={"card": card},
             message="Card frozen successfully"
         )
         
-    except NotFoundError as e:
+    except CardNotFoundException as e:
         logger.error(f"Card not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
+    except FintechException as e:
         logger.error(f"Unauthorized access: {e}")
         raise HTTPException(status_code=403, detail=str(e))
-    except BusinessLogicError as e:
+    except BusinessRuleViolationException as e:
         logger.error(f"Business logic error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -423,7 +241,8 @@ async def unfreeze_card_endpoint(
     card_id: str = Path(..., description="Card ID"),
     user_id: str = Query(..., description="User ID"),
     reason: Optional[str] = Query("User requested", description="Reason for unfreezing"),
-    card_service: CardService = Depends(get_card_service)
+    db: Session = Depends(get_db),
+    card_service: DatabaseCardService = Depends(get_card_service)
 ):
     """
     Unfreeze a card to allow transactions.
@@ -434,20 +253,20 @@ async def unfreeze_card_endpoint(
     try:
         logger.info(f"API: Unfreezing card {card_id}")
         
-        card = await card_service.unfreeze_card(card_id, user_id, reason)
+        card = card_service.unblock_card(card_id, user_id, db)
         
         return success_response(
             data={"card": card},
             message="Card unfrozen successfully"
         )
         
-    except NotFoundError as e:
+    except CardNotFoundException as e:
         logger.error(f"Card not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
+    except FintechException as e:
         logger.error(f"Unauthorized access: {e}")
         raise HTTPException(status_code=403, detail=str(e))
-    except BusinessLogicError as e:
+    except BusinessRuleViolationException as e:
         logger.error(f"Business logic error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -460,7 +279,8 @@ async def block_card_endpoint(
     card_id: str = Path(..., description="Card ID"),
     user_id: str = Query(..., description="User ID"),
     reason: Optional[str] = Query("Security concern", description="Reason for blocking"),
-    card_service: CardService = Depends(get_card_service)
+    db: Session = Depends(get_db),
+    card_service: DatabaseCardService = Depends(get_card_service)
 ):
     """
     Block a card due to security concerns.
@@ -471,24 +291,61 @@ async def block_card_endpoint(
     try:
         logger.info(f"API: Blocking card {card_id}")
         
-        card = await card_service.block_card(card_id, user_id, reason)
+        card = card_service.block_card(card_id, user_id, db)
         
         return success_response(
             data={"card": card},
             message="Card blocked successfully"
         )
         
-    except NotFoundError as e:
+    except CardNotFoundException as e:
         logger.error(f"Card not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    except UnauthorizedError as e:
+    except FintechException as e:
         logger.error(f"Unauthorized access: {e}")
         raise HTTPException(status_code=403, detail=str(e))
-    except BusinessLogicError as e:
+    except BusinessRuleViolationException as e:
         logger.error(f"Business logic error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error blocking card: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.delete("/{card_id}", response_model=dict)
+async def delete_card(
+    card_id: str = Path(..., description="Card ID"),
+    user_id: str = Query(..., description="User ID"),
+    db: Session = Depends(get_db),
+    card_service: DatabaseCardService = Depends(get_card_service)
+):
+    """
+    Delete a card permanently.
+    
+    Permanently removes the card from the system.
+    This action cannot be undone.
+    """
+    try:
+        logger.info(f"API: Deleting card {card_id}")
+        
+        success = card_service.delete_card(card_id, user_id, db)
+        
+        return success_response(
+            data={"success": success},
+            message="Card deleted successfully"
+        )
+        
+    except CardNotFoundException as e:
+        logger.error(f"Card not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except FintechException as e:
+        logger.error(f"Unauthorized access: {e}")
+        raise HTTPException(status_code=403, detail=str(e))
+    except BusinessRuleViolationException as e:
+        logger.error(f"Business logic error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error deleting card: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

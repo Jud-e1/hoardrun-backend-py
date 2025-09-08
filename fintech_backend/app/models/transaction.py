@@ -8,7 +8,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 
-from app.models.base import BaseResponse, TimestampMixin
+from app.models.base import BaseResponse, BaseModel as BaseModelWithTimestamps
 
 
 class TransactionType(str, Enum):
@@ -90,7 +90,7 @@ class PaymentMethod(str, Enum):
     OTHER = "other"
 
 
-class Transaction(BaseModel, TimestampMixin):
+class Transaction(BaseModelWithTimestamps):
     """Transaction model representing a financial transaction."""
     transaction_id: str = Field(..., description="Unique transaction identifier")
     account_id: str = Field(..., description="Associated account ID")
@@ -166,6 +166,36 @@ class TransactionSummary(BaseModel):
 
 
 # Request models
+class TransactionCreateRequest(BaseModel):
+    """Request model for creating a new transaction."""
+    account_id: str = Field(..., description="Associated account ID")
+    transaction_type: TransactionType = Field(..., description="Type of transaction")
+    amount: Decimal = Field(..., description="Transaction amount")
+    currency: str = Field(default="USD", description="Transaction currency code")
+    description: str = Field(..., description="Transaction description")
+    merchant_name: Optional[str] = Field(None, description="Merchant or counterparty name")
+    merchant_category: MerchantCategory = Field(default=MerchantCategory.OTHER, description="Merchant category")
+    payment_method: PaymentMethod = Field(..., description="Payment method used")
+    card_id: Optional[str] = Field(None, description="Card ID if card transaction")
+    reference_number: Optional[str] = Field(None, description="External reference number")
+    location: Optional[str] = Field(None, description="Transaction location")
+    tags: List[str] = Field(default_factory=list, description="User-defined tags")
+    notes: Optional[str] = Field(None, description="User notes")
+
+
+class TransactionFilters(BaseModel):
+    """Filters for transaction queries."""
+    account_id: Optional[str] = Field(None, description="Filter by account ID")
+    transaction_type: Optional[str] = Field(None, description="Filter by transaction type")
+    status: Optional[str] = Field(None, description="Filter by status")
+    start_date: Optional[date] = Field(None, description="Filter from date")
+    end_date: Optional[date] = Field(None, description="Filter to date")
+    min_amount: Optional[float] = Field(None, ge=0, description="Minimum amount filter")
+    max_amount: Optional[float] = Field(None, gt=0, description="Maximum amount filter")
+    limit: int = Field(default=50, ge=1, le=1000, description="Number of results to return")
+    offset: int = Field(default=0, ge=0, description="Number of results to skip")
+
+
 class TransactionListRequest(BaseModel):
     """Request model for listing transactions."""
     account_id: Optional[str] = Field(None, description="Filter by account ID")

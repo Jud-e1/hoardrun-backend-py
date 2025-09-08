@@ -8,8 +8,6 @@ from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 
-from app.models.base import BaseResponse, TimestampMixin
-
 
 class AccountType(str, Enum):
     """Enumeration of account types."""
@@ -75,8 +73,12 @@ class AccountBalance(BaseModel):
         return self.available_balance - self.reserved_balance
 
 
-class Account(BaseModel, TimestampMixin):
+class Account(BaseModel):
     """Account model representing a financial account."""
+    id: Optional[str] = Field(None, description="Unique identifier")
+    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+    
     account_id: str = Field(..., description="Unique account identifier")
     user_id: str = Field(..., description="Owner user ID")
     account_type: AccountType = Field(..., description="Type of account")
@@ -105,6 +107,10 @@ class Account(BaseModel, TimestampMixin):
 
 class AccountStatement(BaseModel):
     """Account statement model."""
+    id: Optional[str] = Field(None, description="Unique identifier")
+    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+    
     statement_id: str = Field(..., description="Unique statement identifier")
     account_id: str = Field(..., description="Account identifier")
     statement_period_start: date = Field(..., description="Statement period start date")
@@ -122,7 +128,7 @@ class StatementTransaction(BaseModel):
     transaction_id: str = Field(..., description="Transaction identifier")
     date: date = Field(..., description="Transaction date")
     description: str = Field(..., description="Transaction description")
-    category: TransactionCategory = Field(..., description="Transaction category")
+    category: str = Field(..., description="Transaction category")
     amount: Decimal = Field(..., description="Transaction amount (positive for credits, negative for debits)")
     balance_after: Decimal = Field(..., description="Account balance after transaction")
     reference_number: Optional[str] = Field(None, description="External reference number")
@@ -177,34 +183,44 @@ class BalanceHistoryRequest(BaseModel):
 
 
 # Response models
-class AccountListResponse(BaseResponse):
+class AccountListResponse(BaseModel):
     """Response model for account listing."""
+    success: bool = Field(default=True, description="Operation success status")
+    message: str = Field(default="Success", description="Response message")
     accounts: List[Account] = Field(..., description="List of user accounts")
     total_count: int = Field(..., description="Total number of accounts")
     primary_account_id: Optional[str] = Field(None, description="Primary account identifier")
 
 
-class AccountResponse(BaseResponse):
+class AccountResponse(BaseModel):
     """Response model for single account operations."""
+    success: bool = Field(default=True, description="Operation success status")
+    message: str = Field(default="Success", description="Response message")
     account: Account = Field(..., description="Account details")
 
 
-class AccountCreatedResponse(BaseResponse):
+class AccountCreatedResponse(BaseModel):
     """Response model for account creation."""
+    success: bool = Field(default=True, description="Operation success status")
+    message: str = Field(default="Account created successfully", description="Response message")
     account: Account = Field(..., description="Created account details")
     welcome_bonus: Optional[Decimal] = Field(None, description="Welcome bonus amount")
     next_steps: List[str] = Field(..., description="Recommended next steps")
 
 
-class AccountBalanceResponse(BaseResponse):
+class AccountBalanceResponse(BaseModel):
     """Response model for account balance."""
+    success: bool = Field(default=True, description="Operation success status")
+    message: str = Field(default="Success", description="Response message")
     account_id: str = Field(..., description="Account identifier")
     balance: AccountBalance = Field(..., description="Current balance information")
     last_updated: datetime = Field(..., description="Last balance update timestamp")
 
 
-class AccountStatementResponse(BaseResponse):
+class AccountStatementResponse(BaseModel):
     """Response model for account statements."""
+    success: bool = Field(default=True, description="Operation success status")
+    message: str = Field(default="Success", description="Response message")
     statement: AccountStatement = Field(..., description="Statement details")
     transactions: List[StatementTransaction] = Field(..., description="Statement transactions")
     summary: Dict[str, Decimal] = Field(..., description="Statement summary by category")
@@ -217,8 +233,10 @@ class BalanceHistoryPoint(BaseModel):
     change: Decimal = Field(default=Decimal("0"), description="Change from previous point")
 
 
-class BalanceHistoryResponse(BaseResponse):
+class BalanceHistoryResponse(BaseModel):
     """Response model for balance history."""
+    success: bool = Field(default=True, description="Operation success status")
+    message: str = Field(default="Success", description="Response message")
     account_id: str = Field(..., description="Account identifier")
     period_start: date = Field(..., description="History period start")
     period_end: date = Field(..., description="History period end")
@@ -227,8 +245,10 @@ class BalanceHistoryResponse(BaseResponse):
     average_balance: Decimal = Field(..., description="Average balance over period")
 
 
-class AccountOverviewResponse(BaseResponse):
+class AccountOverviewResponse(BaseModel):
     """Response model for comprehensive account overview."""
+    success: bool = Field(default=True, description="Operation success status")
+    message: str = Field(default="Success", description="Response message")
     accounts: List[Account] = Field(..., description="All user accounts")
     total_assets: Decimal = Field(..., description="Total assets across accounts")
     total_liabilities: Decimal = Field(..., description="Total liabilities (credit balances)")
@@ -238,8 +258,10 @@ class AccountOverviewResponse(BaseResponse):
     cash_flow_trend: str = Field(..., description="Cash flow trend analysis")
 
 
-class AccountTransferResponse(BaseResponse):
+class AccountTransferResponse(BaseModel):
     """Response model for account transfers."""
+    success: bool = Field(default=True, description="Operation success status")
+    message: str = Field(default="Transfer completed successfully", description="Response message")
     transfer_id: str = Field(..., description="Transfer transaction identifier")
     from_account: str = Field(..., description="Source account ID")
     to_account: str = Field(..., description="Destination account ID")

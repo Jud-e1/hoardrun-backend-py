@@ -3,7 +3,7 @@ Peer-to-peer money transfer models for the fintech backend.
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
