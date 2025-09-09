@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
-import jwt
+from jose import jwt
 
 from app.models.auth import (
     UserRegisterRequest, UserLoginRequest, UserProfile, TokenData,

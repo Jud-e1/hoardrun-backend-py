@@ -4,7 +4,7 @@ Authentication and authorization utilities for FastAPI.
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import jwt
+from jose import jwt
 from datetime import datetime, UTC
 
 from ..config.settings import get_settings

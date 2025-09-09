@@ -9,8 +9,8 @@ from typing import Dict, List, Set, Optional, Any
 from fastapi import WebSocket, WebSocketDisconnect, HTTPException, status
 from datetime import datetime
 import asyncio
-import jwt
-from jwt.exceptions import InvalidTokenError
+from jose import jwt
+from jose.exceptions import JWTError as InvalidTokenError
 
 from app.config.settings import get_settings
 from app.core.exceptions import AuthenticationError
