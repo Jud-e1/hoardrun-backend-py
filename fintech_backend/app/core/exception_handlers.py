@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 from typing import Union
 
+import json
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -13,6 +14,21 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .exceptions import FintechException
 from ..models.base import ErrorResponse
+from ..utils.json_encoder import CustomJSONEncoder
+
+
+class CustomJSONResponse(JSONResponse):
+    """Custom JSONResponse that uses CustomJSONEncoder for datetime serialization."""
+    
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            cls=CustomJSONEncoder,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +60,7 @@ async def fintech_exception_handler(request: Request, exc: FintechException) -> 
         request_id=request_id
     )
     
-    return JSONResponse(
+    return CustomJSONResponse(
         status_code=exc.status_code,
         content=error_response.dict()
     )
@@ -53,7 +69,7 @@ async def fintech_exception_handler(request: Request, exc: FintechException) -> 
 async def validation_exception_handler(
     request: Request, 
     exc: Union[RequestValidationError, ValidationError]
-) -> JSONResponse:
+) -> CustomJSONResponse:
     """Handle Pydantic validation errors with structured responses."""
     
     request_id = getattr(request.state, 'request_id', None)
@@ -86,13 +102,13 @@ async def validation_exception_handler(
         request_id=request_id
     )
     
-    return JSONResponse(
+    return CustomJSONResponse(
         status_code=422,
         content=error_response.dict()
     )
 
 
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: HTTPException) -> CustomJSONResponse:
     """Handle FastAPI HTTP exceptions with structured responses."""
     
     request_id = getattr(request.state, 'request_id', None)
@@ -130,13 +146,13 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         request_id=request_id
     )
     
-    return JSONResponse(
+    return CustomJSONResponse(
         status_code=exc.status_code,
         content=error_response.dict()
     )
 
 
-async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+async def generic_exception_handler(request: Request, exc: Exception) -> CustomJSONResponse:
     """Handle unexpected exceptions with structured responses."""
     
     request_id = getattr(request.state, 'request_id', None)
@@ -160,7 +176,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
         request_id=request_id
     )
     
-    return JSONResponse(
+    return CustomJSONResponse(
         status_code=500,
         content=error_response.dict()
     )
