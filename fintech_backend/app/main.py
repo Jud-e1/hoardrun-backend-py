@@ -33,7 +33,7 @@ from app.api.v1.accounts import router as accounts_router
 from app.api.v1.transactions import router as transactions_router
 from app.api.v1.transfers import router as transfers_router
 from app.api.p2p import router as p2p_router
-from app.api.investments import router as investments_router
+from app.api.v1.investments import router as investments_router
 from app.api.websocket import router as websocket_router
 
 # Get application settings
@@ -70,6 +70,7 @@ app.include_router(beneficiaries_router, prefix="/api/v1")
 app.include_router(mobile_money_router, prefix="/api/v1")
 app.include_router(payment_methods_router, prefix="/api/v1")
 app.include_router(kyc_router, prefix="/api/v1")
+app.include_router(savings_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(market_data_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")

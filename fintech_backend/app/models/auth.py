@@ -169,11 +169,28 @@ class UserResponse(BaseModel):
     data: Dict[str, UserProfile] = Field(..., description="User data")
 
 
+class LoginData(BaseModel):
+    """Login response data model."""
+    access_token: str = Field(..., description="JWT access token")
+    refresh_token: str = Field(..., description="JWT refresh token")
+    token_type: str = Field("bearer", description="Token type")
+    expires_in: int = Field(..., description="Token expiration time in seconds")
+    expires_at: datetime = Field(..., description="Token expiration timestamp")
+    user: UserProfile = Field(..., description="User profile data")
+
+
 class TokenResponse(BaseModel):
     """Token response model."""
     success: bool = Field(True, description="Response success status")
     message: str = Field(..., description="Response message")
     data: TokenData = Field(..., description="Token data")
+
+
+class LoginResponse(BaseModel):
+    """Login response model."""
+    success: bool = Field(True, description="Response success status")
+    message: str = Field(..., description="Response message")
+    data: LoginData = Field(..., description="Login data with tokens and user info")
 
 
 class AuthResponse(BaseModel):

@@ -12,14 +12,15 @@ from datetime import datetime
 from decimal import Decimal
 
 class DatabaseTransactionService:
-    def __init__(self):
-        self.transaction_repository = TransactionRepository()
-        self.account_repository = AccountRepository()
+    def __init__(self, db: Session):
+        self.db = db
+        self.transaction_repository = TransactionRepository(db)
+        self.account_repository = AccountRepository(db)
     
     def get_user_transactions(self, user_id: str, filters: TransactionFilters, db: Session) -> List[TransactionResponse]:
         """Get transactions for a user with optional filters"""
-        transactions = self.transaction_repository.get_transactions_by_user_id(
-            db, user_id, filters.limit, filters.offset
+        transactions = self.transaction_repository.get_transactions_by_user(
+            user_id, filters.limit, filters.offset
         )
         
         # Apply additional filters
@@ -55,12 +56,12 @@ class DatabaseTransactionService:
     
     def get_transaction_by_id(self, transaction_id: str, user_id: str, db: Session) -> TransactionResponse:
         """Get a specific transaction by ID"""
-        transaction = self.transaction_repository.get_by_id(db, transaction_id)
+        transaction = self.transaction_repository.get_transaction_by_id(transaction_id)
         if not transaction:
             raise AccountNotFoundException(f"Transaction with ID {transaction_id} not found")
         
         # Verify the transaction belongs to the user (through account)
-        account = self.account_repository.get_by_id(db, transaction.account_id)
+        account = self.account_repository.get_account_by_id(transaction.account_id)
         if not account or account.user_id != user_id:
             raise AccountNotFoundException(f"Transaction with ID {transaction_id} not found")
         
@@ -69,7 +70,7 @@ class DatabaseTransactionService:
     def create_transaction(self, user_id: str, transaction_data: TransactionCreateRequest, db: Session) -> TransactionResponse:
         """Create a new transaction"""
         # Verify the account exists and belongs to the user
-        account = self.account_repository.get_by_id(db, transaction_data.account_id)
+        account = self.account_repository.get_account_by_id(transaction_data.account_id)
         if not account or account.user_id != user_id:
             raise ValidationException("Invalid account ID or account does not belong to user")
         
@@ -109,23 +110,23 @@ class DatabaseTransactionService:
     def get_account_transactions(self, account_id: str, user_id: str, limit: int = 50, offset: int = 0, db: Session = None) -> List[TransactionResponse]:
         """Get transactions for a specific account"""
         # Verify account belongs to user
-        account = self.account_repository.get_by_id(db, account_id)
+        account = self.account_repository.get_account_by_id(account_id)
         if not account or account.user_id != user_id:
             raise AccountNotFoundException(f"Account with ID {account_id} not found")
         
-        transactions = self.transaction_repository.get_transactions_by_account_id(db, account_id, limit, offset)
+        transactions = self.transaction_repository.get_transactions_by_account(account_id, limit, offset)
         return [self._convert_to_response(transaction) for transaction in transactions]
     
     def get_transaction_summary(self, user_id: str, account_id: Optional[str] = None, db: Session = None) -> Dict[str, Any]:
         """Get transaction summary for user or specific account"""
         if account_id:
             # Verify account belongs to user
-            account = self.account_repository.get_by_id(db, account_id)
+            account = self.account_repository.get_account_by_id(account_id)
             if not account or account.user_id != user_id:
                 raise AccountNotFoundException(f"Account with ID {account_id} not found")
-            transactions = self.transaction_repository.get_transactions_by_account_id(db, account_id)
+            transactions = self.transaction_repository.get_transactions_by_account(account_id)
         else:
-            transactions = self.transaction_repository.get_transactions_by_user_id(db, user_id)
+            transactions = self.transaction_repository.get_transactions_by_user(user_id)
         
         # Calculate summary
         total_transactions = len(transactions)
