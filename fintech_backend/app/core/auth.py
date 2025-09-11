@@ -4,7 +4,7 @@ Authentication and authorization utilities for FastAPI.
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt
+from jose import jwt, JWTError
 from datetime import datetime, UTC
 
 from ..config.settings import get_settings
@@ -64,7 +64,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except jwt.InvalidTokenError:
+    except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
@@ -215,7 +215,7 @@ def verify_token(token: str, token_type: str = "access") -> dict:
         
     except jwt.ExpiredSignatureError:
         raise TokenExpiredException(token_type)
-    except jwt.InvalidTokenError:
+    except JWTError:
         raise InvalidTokenException(token_type)
 
 

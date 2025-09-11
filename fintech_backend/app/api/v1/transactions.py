@@ -26,9 +26,9 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
 
-def get_transaction_service():
+def get_transaction_service(db: Session = Depends(get_db)):
     """Dependency to get transaction service instance"""
-    return DatabaseTransactionService()
+    return DatabaseTransactionService(db)
 
 
 @router.get("/", response_model=TransactionListResponse)
@@ -86,15 +86,34 @@ async def list_transactions(
         
         transactions = transaction_service.get_user_transactions(user_id, filters, db)
         
-        result = {
-            "transactions": transactions,
-            "total_count": len(transactions),
-            "has_more": len(transactions) == limit
-        }
+        # Create a basic summary for the response
+        from app.models.transaction import TransactionSummary
+        from datetime import date
+        from decimal import Decimal
         
-        return success_response(
-            data=result,
-            message=f"Retrieved {len(transactions)} transactions"
+        summary = TransactionSummary(
+            period_start=parsed_start_date or date.today(),
+            period_end=parsed_end_date or date.today(),
+            total_transactions=len(transactions),
+            total_amount=sum(t.amount for t in transactions) if transactions else Decimal("0"),
+            total_credits=sum(t.amount for t in transactions if t.amount > 0) if transactions else Decimal("0"),
+            total_debits=sum(abs(t.amount) for t in transactions if t.amount < 0) if transactions else Decimal("0"),
+            average_transaction=sum(t.amount for t in transactions) / len(transactions) if transactions else Decimal("0"),
+            largest_transaction=max(t.amount for t in transactions) if transactions else Decimal("0"),
+            by_category={},
+            by_merchant={}
+        )
+        
+        # Return the response directly without success_response wrapper
+        return TransactionListResponse(
+            success=True,
+            message=f"Retrieved {len(transactions)} transactions",
+            status_code=200,
+            data=None,
+            transactions=transactions,
+            total_count=len(transactions),
+            summary=summary,
+            has_more=len(transactions) == limit
         )
         
     except AccountNotFoundException as e:

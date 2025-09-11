@@ -141,6 +141,24 @@ class User(Base, TimestampMixin):
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     
+    # Authentication fields
+    password_hash = Column(String, nullable=False)
+    email_verification_token = Column(String)
+    email_verified = Column(Boolean, default=False)
+    password_reset_token = Column(String)
+    password_reset_expires = Column(DateTime(timezone=True))
+    last_login_at = Column(DateTime(timezone=True))
+    
+    # Profile fields
+    date_of_birth = Column(String)
+    country = Column(String)
+    bio = Column(Text)
+    profile_picture_url = Column(String)
+    
+    # Status and role
+    status = Column(String, default="pending")  # pending, active, suspended, deactivated
+    role = Column(String, default="user")  # user, premium, admin
+    
     # Relationships
     accounts = relationship("Account", back_populates="user", cascade="all, delete-orphan")
     cards = relationship("Card", back_populates="user", cascade="all, delete-orphan")

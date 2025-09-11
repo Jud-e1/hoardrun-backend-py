@@ -192,8 +192,8 @@ class InvestmentService:
         
         # Apply pagination
         total_count = len(user_portfolios)
-        start_idx = pagination.skip
-        end_idx = start_idx + pagination.limit
+        start_idx = (pagination.page - 1) * pagination.page_size
+        end_idx = start_idx + pagination.page_size
         portfolios = user_portfolios[start_idx:end_idx]
         
         # Calculate totals
@@ -366,8 +366,8 @@ class InvestmentService:
         # Apply pagination if provided
         total_count = len(user_orders)
         if pagination:
-            start_idx = pagination.skip
-            end_idx = start_idx + pagination.limit
+            start_idx = (pagination.page - 1) * pagination.page_size
+            end_idx = start_idx + pagination.page_size
             user_orders = user_orders[start_idx:end_idx]
         
         # Calculate counts

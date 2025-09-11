@@ -98,10 +98,23 @@ class Settings(BaseSettings):
         default="your-secret-key-here", 
         description="Secret key for JWT token generation"
     )
+    jwt_secret_key: str = Field(
+        default="your-secret-key-here", 
+        description="JWT secret key for token generation"
+    )
     algorithm: str = Field(default="HS256", description="JWT algorithm")
+    jwt_algorithm: str = Field(default="HS256", description="JWT algorithm")
     access_token_expire_minutes: int = Field(
         default=30, 
         description="Access token expiration time in minutes"
+    )
+    jwt_access_token_expire_minutes: int = Field(
+        default=30, 
+        description="JWT access token expiration time in minutes"
+    )
+    jwt_refresh_token_expire_days: int = Field(
+        default=7, 
+        description="JWT refresh token expiration time in days"
     )
     
     # API settings

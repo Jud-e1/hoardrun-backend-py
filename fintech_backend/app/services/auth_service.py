@@ -11,7 +11,7 @@ from passlib.context import CryptContext
 from jose import jwt
 
 from app.models.auth import (
-    UserRegisterRequest, UserLoginRequest, UserProfile, TokenData,
+    UserRegisterRequest, UserLoginRequest, UserProfile, TokenData, LoginData,
     UserProfileUpdateRequest, PasswordChangeRequest, UserCreate, UserUpdate,
     UserStatus, UserRole, JWTPayload
 )
@@ -34,10 +34,10 @@ class AuthService:
     
     def __init__(self):
         self.settings = get_settings()
-        self.secret_key = self.settings.secret_key or "your-secret-key-here"
-        self.algorithm = "HS256"
-        self.access_token_expire_minutes = 30
-        self.refresh_token_expire_days = 7
+        self.secret_key = self.settings.jwt_secret_key or self.settings.secret_key or "your-secret-key-here"
+        self.algorithm = self.settings.jwt_algorithm or self.settings.algorithm or "HS256"
+        self.access_token_expire_minutes = self.settings.jwt_access_token_expire_minutes or self.settings.access_token_expire_minutes or 30
+        self.refresh_token_expire_days = self.settings.jwt_refresh_token_expire_days or 7
     
     async def register_user(self, request: UserRegisterRequest, db: Session) -> UserProfile:
         """
@@ -77,33 +77,55 @@ class AuthService:
                 phone_number=request.phone_number,
                 date_of_birth=request.date_of_birth,
                 country=request.country,
-                status=UserStatus.PENDING,
+                status=UserStatus.ACTIVE,
                 role=UserRole.USER,
-                email_verified=False,
+                email_verified=True,
                 email_verification_token=verification_token
             )
             
-            # Save user to database (mock implementation)
-            user_id = self._generate_user_id()
-            user_profile = UserProfile(
-                id=user_id,
+            # Save user to database
+            from app.database.models import User as DBUser
+            
+            db_user = DBUser(
                 email=user_data.email,
+                password_hash=user_data.password_hash,
                 first_name=user_data.first_name,
                 last_name=user_data.last_name,
                 phone_number=user_data.phone_number,
                 date_of_birth=user_data.date_of_birth,
                 country=user_data.country,
-                status=user_data.status,
-                role=user_data.role,
+                status=user_data.status.value,
+                role=user_data.role.value,
                 email_verified=user_data.email_verified,
+                email_verification_token=user_data.email_verification_token,
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow()
+            )
+            
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+            
+            # Create user profile response
+            user_profile = UserProfile(
+                id=db_user.id,
+                email=db_user.email,
+                first_name=db_user.first_name,
+                last_name=db_user.last_name,
+                phone_number=db_user.phone_number,
+                date_of_birth=db_user.date_of_birth,
+                country=db_user.country,
+                status=UserStatus(db_user.status),
+                role=UserRole(db_user.role),
+                email_verified=db_user.email_verified,
+                created_at=db_user.created_at,
+                updated_at=db_user.updated_at
             )
             
             # Send verification email (mock)
             await self._send_verification_email(user_data.email, verification_token)
             
-            logger.info(f"User registered successfully: {user_id}")
+            logger.info(f"User registered successfully: {db_user.id}")
             return user_profile
             
         except EmailAlreadyExistsException:
@@ -112,16 +134,16 @@ class AuthService:
             logger.error(f"Error registering user: {e}")
             raise ValidationException(f"Registration failed: {str(e)}")
     
-    async def authenticate_user(self, request: UserLoginRequest, db: Session) -> TokenData:
+    async def authenticate_user(self, request: UserLoginRequest, db: Session) -> LoginData:
         """
-        Authenticate user and return tokens.
+        Authenticate user and return tokens with user data.
         
         Args:
             request: User login request
             db: Database session
             
         Returns:
-            TokenData: Access and refresh tokens
+            LoginData: Access and refresh tokens with user profile
             
         Raises:
             AuthenticationException: If authentication fails
@@ -130,12 +152,12 @@ class AuthService:
         try:
             logger.info(f"Authenticating user: {request.email}")
             
-            # Get user by email (mock implementation)
+            # Get user by email
             user = await self._get_user_by_email(request.email, db)
             if not user:
                 raise UserNotFoundException(f"User with email {request.email} not found")
             
-            # Verify password (mock implementation)
+            # Verify password
             if not self._verify_password(request.password, user.get("password_hash", "")):
                 raise AuthenticationException("Invalid email or password")
             
@@ -147,23 +169,44 @@ class AuthService:
             access_token = self._create_access_token(user)
             refresh_token = self._create_refresh_token(user)
             
-            # Update last login (mock)
+            # Update last login
             await self._update_last_login(user["id"], db)
             
             # Calculate expiration
             expires_in = self.access_token_expire_minutes * 60
             expires_at = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)
             
-            token_data = TokenData(
+            # Create user profile
+            user_profile = UserProfile(
+                id=user["id"],
+                email=user["email"],
+                first_name=user["first_name"],
+                last_name=user["last_name"],
+                phone_number=user.get("phone_number"),
+                date_of_birth=user.get("date_of_birth"),
+                country=user.get("country"),
+                bio=user.get("bio"),
+                profile_picture_url=user.get("profile_picture_url"),
+                status=UserStatus(user["status"]),
+                role=UserRole(user["role"]),
+                email_verified=user["email_verified"],
+                created_at=user["created_at"],
+                updated_at=user["updated_at"],
+                last_login_at=user.get("last_login_at")
+            )
+            
+            # Create login data with tokens and user info
+            login_data = LoginData(
                 access_token=access_token,
                 refresh_token=refresh_token,
                 token_type="bearer",
                 expires_in=expires_in,
-                expires_at=expires_at
+                expires_at=expires_at,
+                user=user_profile
             )
             
             logger.info(f"User authenticated successfully: {user['id']}")
-            return token_data
+            return login_data
             
         except (AuthenticationException, UserNotFoundException):
             raise
@@ -535,6 +578,9 @@ class AuthService:
             "role": user["role"],
             "exp": expire,
             "iat": now,
+            "token_type": "access",
+            "is_active": user.get("is_active", True),
+            "is_verified": user.get("email_verified", True),
             "jti": secrets.token_urlsafe(16)
         }
         
@@ -578,27 +624,66 @@ class AuthService:
         """Generate password reset token."""
         return secrets.token_urlsafe(32)
     
-    # Mock database operations (replace with actual database calls)
+    # Database operations
     async def _get_user_by_email(self, email: str, db: Session) -> Optional[Dict[str, Any]]:
-        """Get user by email (mock implementation)."""
-        # This would be replaced with actual database query
+        """Get user by email."""
+        from app.database.models import User as DBUser
+        
+        user = db.query(DBUser).filter(DBUser.email == email).first()
+        if user:
+            return {
+                "id": user.id,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phone_number": user.phone_number,
+                "date_of_birth": user.date_of_birth,
+                "country": user.country,
+                "bio": user.bio,
+                "profile_picture_url": user.profile_picture_url,
+                "status": user.status,
+                "role": user.role,
+                "email_verified": user.email_verified,
+                "password_hash": user.password_hash,
+                "email_verification_token": user.email_verification_token,
+                "password_reset_token": user.password_reset_token,
+                "password_reset_expires": user.password_reset_expires,
+                "last_login_at": user.last_login_at,
+                "created_at": user.created_at,
+                "updated_at": user.updated_at,
+                "is_active": user.is_active
+            }
         return None
     
     async def _get_user_by_id(self, user_id: str, db: Session) -> Optional[Dict[str, Any]]:
-        """Get user by ID (mock implementation)."""
-        # Mock user data
-        return {
-            "id": user_id,
-            "email": "user@example.com",
-            "first_name": "John",
-            "last_name": "Doe",
-            "status": UserStatus.ACTIVE.value,
-            "role": UserRole.USER.value,
-            "email_verified": True,
-            "password_hash": "$2b$12$example_hash",
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
+        """Get user by ID."""
+        from app.database.models import User as DBUser
+        
+        user = db.query(DBUser).filter(DBUser.id == user_id).first()
+        if user:
+            return {
+                "id": user.id,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phone_number": user.phone_number,
+                "date_of_birth": user.date_of_birth,
+                "country": user.country,
+                "bio": user.bio,
+                "profile_picture_url": user.profile_picture_url,
+                "status": user.status,
+                "role": user.role,
+                "email_verified": user.email_verified,
+                "password_hash": user.password_hash,
+                "email_verification_token": user.email_verification_token,
+                "password_reset_token": user.password_reset_token,
+                "password_reset_expires": user.password_reset_expires,
+                "last_login_at": user.last_login_at,
+                "created_at": user.created_at,
+                "updated_at": user.updated_at,
+                "is_active": user.is_active
+            }
+        return None
     
     async def _get_user_by_verification_token(self, token: str, db: Session) -> Optional[Dict[str, Any]]:
         """Get user by verification token (mock implementation)."""

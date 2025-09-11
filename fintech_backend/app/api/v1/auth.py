@@ -10,7 +10,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from app.models.auth import (
-    UserRegisterRequest, UserLoginRequest, UserResponse, TokenResponse,
+    UserRegisterRequest, UserLoginRequest, UserResponse, TokenResponse, LoginResponse,
     PasswordResetRequest, PasswordChangeRequest, EmailVerificationRequest,
     UserProfileUpdateRequest, UserSettingsUpdateRequest
 )
@@ -66,16 +66,16 @@ async def register_user(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=LoginResponse)
 async def login_user(
     request: UserLoginRequest = Body(...),
     db: Session = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service)
 ):
     """
-    Authenticate user and return access tokens.
+    Authenticate user and return access tokens with user data.
     
-    Validates credentials and returns JWT tokens for API access.
+    Validates credentials and returns JWT tokens and user profile for API access.
     """
     try:
         logger.info(f"API: Login attempt for email {request.email}")

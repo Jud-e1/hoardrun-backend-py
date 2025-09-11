@@ -49,7 +49,7 @@ async def create_audit_log(
     """
     try:
         audit_log = await audit_service.create_audit_log(
-            user_id=current_user.id,
+            user_id=current_user["user_id"],
             audit_data=audit_request
         )
         return audit_log
@@ -86,7 +86,7 @@ async def get_audit_logs(
     """
     try:
         # For non-admin users, only show their own logs
-        filter_user_id = user_id if current_user.role == "admin" else current_user.id
+        filter_user_id = user_id if current_user.get("role") == "admin" else current_user["user_id"]
         
         audit_logs = await audit_service.get_audit_logs(
             user_id=filter_user_id,
@@ -118,7 +118,7 @@ async def perform_compliance_check(
     """
     try:
         # For non-admin users, only allow checking their own compliance
-        if current_user.role != "admin" and check_request.user_id != current_user.id:
+        if current_user.get("role") != "admin" and check_request.user_id != current_user["user_id"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only perform compliance checks on your own account"
@@ -155,7 +155,7 @@ async def generate_compliance_report(
     """
     try:
         # Only admin users can generate compliance reports
-        if current_user.role != "admin":
+        if current_user.get("role") != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only admin users can generate compliance reports"
@@ -191,7 +191,7 @@ async def get_compliance_metrics(
     """
     try:
         # Only admin users can access compliance metrics
-        if current_user.role != "admin":
+        if current_user.get("role") != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only admin users can access compliance metrics"

@@ -68,13 +68,13 @@ async def get_portfolios(
 ):
     """Get portfolios for the authenticated user."""
     try:
-        pagination = PaginationRequest(skip=(page - 1) * limit, limit=limit)
+        pagination = PaginationRequest(page=page, page_size=limit)
         result = await investment_service.get_portfolios(current_user["user_id"], pagination)
         
         return PortfolioListResponse(
             success=True,
             message="Portfolios retrieved successfully",
-            data=result
+            **result
         )
     except Exception as e:
         raise HTTPException(
@@ -178,7 +178,7 @@ async def get_orders(
 ):
     """Get investment orders for the authenticated user."""
     try:
-        pagination = PaginationRequest(skip=(page - 1) * limit, limit=limit)
+        pagination = PaginationRequest(page=page, page_size=limit)
         result = await investment_service.get_orders(
             current_user["user_id"], portfolio_id, status, pagination
         )
@@ -530,7 +530,7 @@ async def get_investment_summary(
         return InvestmentSummaryResponse(
             success=True,
             message="Investment summary retrieved successfully",
-            data=summary
+            **summary
         )
     except Exception as e:
         raise HTTPException(

@@ -19,9 +19,48 @@ from ...services.dashboard_service import get_dashboard_service, get_notificatio
 from ...utils.validators import validate_user_id
 from ...core.middleware import get_rate_limiter
 from ...core.exceptions import ValidationException
+from ...core.auth import get_current_user
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 limiter = get_rate_limiter()
+
+
+@router.get(
+    "",
+    response_model=DashboardSummaryResponse,
+    summary="Get Current User Dashboard",
+    description="Retrieve dashboard summary for the authenticated user"
+)
+@limiter.limit("30/minute")
+async def get_current_user_dashboard(
+    request: Request,
+    current_user = Depends(get_current_user),
+    include_pending: bool = Query(default=True, description="Include pending transactions"),
+    date_range_days: int = Query(default=30, ge=1, le=365, description="Date range for recent data"),
+    dashboard_service = Depends(get_dashboard_service)
+):
+    """
+    Get dashboard summary for the authenticated user.
+    
+    Returns financial overview, recent activity, notifications count, and quick stats.
+    
+    - **include_pending**: Whether to include pending transactions in recent activity
+    - **date_range_days**: Number of days to look back for recent data (1-365)
+    """
+    try:
+        # Get dashboard summary for current user
+        result = await dashboard_service.get_dashboard_summary(
+            user_id=current_user["user_id"],
+            include_pending=include_pending,
+            date_range_days=date_range_days
+        )
+        
+        return result
+        
+    except ValidationException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get(
