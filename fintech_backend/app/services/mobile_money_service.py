@@ -22,6 +22,7 @@ from app.core.exceptions import (
 )
 from app.config.settings import get_settings
 from app.config.logging import get_logger
+from app.external.mtn_momo_api import get_mtn_momo_client
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -32,6 +33,7 @@ class MobileMoneyService:
     
     def __init__(self):
         self.auth_service = AuthService()
+        self.mtn_momo_client = get_mtn_momo_client()
     
     async def send_money(self, token: str, request: MobileMoneyTransferRequest, db: Session) -> MobileMoneyTransaction:
         """
@@ -586,30 +588,126 @@ class MobileMoneyService:
         )
     
     async def _initiate_provider_transaction(self, transaction: MobileMoneyTransaction, db: Session) -> None:
-        """Initiate transaction with provider (mock implementation)."""
+        """Initiate transaction with provider."""
         logger.info(f"Initiating provider transaction: {transaction.id}")
-        # Mock provider API call
-        pass
+        
+        if transaction.provider == MobileMoneyProvider.MTN_MOMO:
+            try:
+                # Use real MTN MOMO API for transfers
+                transfer_data = {
+                    "amount": float(transaction.amount),
+                    "currency": transaction.currency.value,
+                    "recipient_phone": transaction.recipient_phone.replace("*", ""),  # Unmask for API call
+                    "external_id": transaction.id,
+                    "payer_message": f"Transfer from Hoardrun - {transaction.description or 'Money transfer'}",
+                    "payee_note": f"Hoardrun transfer - Ref: {transaction.reference or transaction.id}"
+                }
+                
+                result = await self.mtn_momo_client.transfer(transfer_data)
+                logger.info(f"MTN MOMO transfer initiated: {result.get('reference_id')}")
+                
+                # Update transaction with provider reference
+                transaction.provider_reference = result.get('reference_id')
+                
+            except Exception as e:
+                logger.error(f"MTN MOMO transfer failed: {e}")
+                # Update transaction status to failed
+                await self._update_transaction_status(transaction.id, TransactionStatus.FAILED, db)
+                raise
+        else:
+            # Use mock implementation for other providers
+            logger.info(f"Using mock implementation for provider: {transaction.provider}")
     
     async def _initiate_provider_collection(self, transaction: MobileMoneyTransaction, db: Session) -> None:
-        """Initiate collection request with provider (mock implementation)."""
+        """Initiate collection request with provider."""
         logger.info(f"Initiating provider collection: {transaction.id}")
-        # Mock provider API call
-        pass
+        
+        if transaction.provider == MobileMoneyProvider.MTN_MOMO:
+            try:
+                # Use real MTN MOMO API for payment requests
+                payment_data = {
+                    "amount": float(transaction.amount),
+                    "currency": transaction.currency.value,
+                    "phone_number": transaction.sender_phone.replace("*", ""),  # Unmask for API call
+                    "external_id": transaction.id,
+                    "payer_message": f"Payment request from Hoardrun - {transaction.description or 'Payment request'}",
+                    "payee_note": f"Hoardrun payment - Ref: {transaction.reference or transaction.id}"
+                }
+                
+                result = await self.mtn_momo_client.request_to_pay(payment_data)
+                logger.info(f"MTN MOMO payment request initiated: {result.get('reference_id')}")
+                
+                # Update transaction with provider reference
+                transaction.provider_reference = result.get('reference_id')
+                
+            except Exception as e:
+                logger.error(f"MTN MOMO payment request failed: {e}")
+                # Update transaction status to failed
+                await self._update_transaction_status(transaction.id, TransactionStatus.FAILED, db)
+                raise
+        else:
+            # Use mock implementation for other providers
+            logger.info(f"Using mock implementation for provider: {transaction.provider}")
     
     async def _initiate_provider_deposit(self, transaction: MobileMoneyTransaction, db: Session) -> None:
-        """Initiate deposit with provider (mock implementation)."""
+        """Initiate deposit with provider."""
         logger.info(f"Initiating provider deposit: {transaction.id}")
-        # Mock provider API call
-        pass
+        
+        if transaction.provider == MobileMoneyProvider.MTN_MOMO:
+            try:
+                # Use real MTN MOMO API for deposits
+                deposit_data = {
+                    "amount": float(transaction.amount),
+                    "currency": transaction.currency.value,
+                    "phone_number": transaction.recipient_phone.replace("*", ""),  # Unmask for API call
+                    "external_id": transaction.id,
+                    "payer_message": f"Deposit to Hoardrun account",
+                    "payee_note": f"Hoardrun deposit - Ref: {transaction.reference or transaction.id}"
+                }
+                
+                result = await self.mtn_momo_client.deposit(deposit_data)
+                logger.info(f"MTN MOMO deposit initiated: {result.get('reference_id')}")
+                
+                # Update transaction with provider reference
+                transaction.provider_reference = result.get('reference_id')
+                
+            except Exception as e:
+                logger.error(f"MTN MOMO deposit failed: {e}")
+                # Update transaction status to failed
+                await self._update_transaction_status(transaction.id, TransactionStatus.FAILED, db)
+                raise
+        else:
+            # Use mock implementation for other providers
+            logger.info(f"Using mock implementation for provider: {transaction.provider}")
     
     async def _verify_account_with_provider(self, request: MobileMoneyAccountRequest, db: Session) -> Optional[Dict[str, Any]]:
-        """Verify account with provider (mock implementation)."""
-        # Mock account verification
-        return {
-            "account_name": "John Doe",
-            "is_valid": True
-        }
+        """Verify account with provider."""
+        if request.provider == MobileMoneyProvider.MTN_MOMO:
+            try:
+                # Use real MTN MOMO API for account verification
+                account_info = await self.mtn_momo_client.get_account_holder_info(request.phone_number)
+                
+                # Check if account is active
+                is_active = await self.mtn_momo_client.validate_account_holder(request.phone_number)
+                
+                if account_info and is_active:
+                    return {
+                        "account_name": account_info.get("name", "MTN MOMO User"),
+                        "is_valid": True,
+                        "account_status": "active"
+                    }
+                else:
+                    return None
+                    
+            except Exception as e:
+                logger.error(f"MTN MOMO account verification failed: {e}")
+                return None
+        else:
+            # Mock account verification for other providers
+            return {
+                "account_name": "John Doe",
+                "is_valid": True
+            }
     
     async def _save_account_to_db(self, account_id: str, account_data: MobileMoneyAccountCreate, db: Session) -> MobileMoneyAccount:
         """Save account to database (mock implementation)."""

@@ -59,6 +59,64 @@ class Settings(BaseSettings):
     )
     mobile_money_timeout: int = Field(default=30, description="Mobile money timeout in seconds")
     
+    # Mastercard API Configuration
+    mastercard_api_key: str = Field(
+        default="", 
+        description="Mastercard API key"
+    )
+    mastercard_partner_id: str = Field(
+        default="", 
+        description="Mastercard Partner ID"
+    )
+    mastercard_environment: str = Field(
+        default="sandbox", 
+        description="Mastercard environment (sandbox/production)"
+    )
+    mastercard_cert_path: str = Field(
+        default="/secure/certs/mastercard/hoardrun.p12", 
+        description="Path to Mastercard certificate file"
+    )
+    mastercard_private_key_path: str = Field(
+        default="/secure/certs/mastercard/hoardrun.key", 
+        description="Path to Mastercard private key file"
+    )
+    mastercard_client_id: str = Field(
+        default="", 
+        description="Mastercard Client ID"
+    )
+    mastercard_org_name: str = Field(
+        default="Hoardrun", 
+        description="Mastercard Organization Name"
+    )
+    mastercard_country: str = Field(
+        default="GH", 
+        description="Mastercard Country Code"
+    )
+    mastercard_cert_password: str = Field(
+        default="", 
+        description="Mastercard Certificate Password"
+    )
+    mastercard_timeout: int = Field(default=30, description="Mastercard API timeout in seconds")
+    
+    # MTN MOMO API Configuration
+    momo_api_url: str = Field(
+        default="https://sandbox.momodeveloper.mtn.com", 
+        description="MTN MOMO API URL"
+    )
+    momo_primary_key: str = Field(
+        default="", 
+        description="MTN MOMO Primary Key"
+    )
+    momo_secondary_key: str = Field(
+        default="", 
+        description="MTN MOMO Secondary Key"
+    )
+    momo_target_environment: str = Field(
+        default="sandbox", 
+        description="MTN MOMO Target Environment"
+    )
+    momo_timeout: int = Field(default=30, description="MTN MOMO API timeout in seconds")
+    
     # Rate limiting settings
     rate_limit_requests: int = Field(default=100, description="Rate limit requests per window")
     rate_limit_window: int = Field(default=60, description="Rate limit window in seconds")
