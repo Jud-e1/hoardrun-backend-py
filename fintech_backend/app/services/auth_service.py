@@ -561,11 +561,15 @@ class AuthService:
     # Private helper methods
     def _hash_password(self, password: str) -> str:
         """Hash password using bcrypt."""
-        return pwd_context.hash(password)
+        # Truncate password to 72 bytes to match bcrypt's limitation
+        truncated_password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+        return pwd_context.hash(truncated_password)
     
     def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash."""
-        return pwd_context.verify(plain_password, hashed_password)
+        # Truncate password to 72 bytes to match bcrypt's behavior during hashing
+        truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+        return pwd_context.verify(truncated_password, hashed_password)
     
     def _create_access_token(self, user: Dict[str, Any]) -> str:
         """Create JWT access token."""

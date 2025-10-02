@@ -35,6 +35,7 @@ from app.api.v1.transfers import router as transfers_router
 from app.api.p2p import router as p2p_router
 from app.api.v1.investments import router as investments_router
 from app.api.v1.mastercard import router as mastercard_router
+from app.api.v1.collective_capital import router as collective_capital_router
 from app.api.websocket import router as websocket_router
 
 # Get application settings
@@ -85,6 +86,7 @@ app.include_router(transfers_router, prefix="/api/v1")
 app.include_router(p2p_router, prefix="/api/v1")
 app.include_router(investments_router, prefix="/api/v1")
 app.include_router(mastercard_router, prefix="/api/v1")
+app.include_router(collective_capital_router, prefix="/api/v1")
 app.include_router(websocket_router)
 
 
