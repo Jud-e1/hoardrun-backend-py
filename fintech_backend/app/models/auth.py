@@ -33,6 +33,7 @@ class UserRegisterRequest(BaseModel):
     phone_number: Optional[str] = Field(None, description="User phone number")
     date_of_birth: Optional[str] = Field(None, description="Date of birth (YYYY-MM-DD)")
     country: Optional[str] = Field(None, description="Country code")
+    id_number: Optional[str] = Field(None, description="User ID number")
     terms_accepted: bool = Field(..., description="Terms and conditions acceptance")
     
     @validator('password')
@@ -125,6 +126,7 @@ class UserProfile(BaseModel):
     phone_number: Optional[str] = Field(None, description="User phone number")
     date_of_birth: Optional[str] = Field(None, description="Date of birth")
     country: Optional[str] = Field(None, description="Country")
+    id_number: Optional[str] = Field(None, description="User ID number")
     bio: Optional[str] = Field(None, description="User bio")
     profile_picture_url: Optional[str] = Field(None, description="Profile picture URL")
     status: UserStatus = Field(..., description="User account status")
@@ -210,6 +212,7 @@ class UserCreate(BaseModel):
     phone_number: Optional[str] = None
     date_of_birth: Optional[str] = None
     country: Optional[str] = None
+    id_number: Optional[str] = None
     status: UserStatus = UserStatus.PENDING
     role: UserRole = UserRole.USER
     email_verified: bool = False
@@ -225,6 +228,7 @@ class UserUpdate(BaseModel):
     phone_number: Optional[str] = None
     date_of_birth: Optional[str] = None
     country: Optional[str] = None
+    id_number: Optional[str] = None
     bio: Optional[str] = None
     profile_picture_url: Optional[str] = None
     status: Optional[UserStatus] = None

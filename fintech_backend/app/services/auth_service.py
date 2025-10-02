@@ -77,6 +77,7 @@ class AuthService:
                 phone_number=request.phone_number,
                 date_of_birth=request.date_of_birth,
                 country=request.country,
+                id_number=request.id_number,
                 status=UserStatus.ACTIVE,
                 role=UserRole.USER,
                 email_verified=True,
@@ -94,6 +95,7 @@ class AuthService:
                 phone_number=user_data.phone_number,
                 date_of_birth=user_data.date_of_birth,
                 country=user_data.country,
+                id_number=user_data.id_number,
                 status=user_data.status.value,
                 role=user_data.role.value,
                 email_verified=user_data.email_verified,
@@ -115,6 +117,7 @@ class AuthService:
                 phone_number=db_user.phone_number,
                 date_of_birth=db_user.date_of_birth,
                 country=db_user.country,
+                id_number=db_user.id_number,
                 status=UserStatus(db_user.status),
                 role=UserRole(db_user.role),
                 email_verified=db_user.email_verified,
@@ -185,6 +188,7 @@ class AuthService:
                 phone_number=user.get("phone_number"),
                 date_of_birth=user.get("date_of_birth"),
                 country=user.get("country"),
+                id_number=user.get("id_number"),
                 bio=user.get("bio"),
                 profile_picture_url=user.get("profile_picture_url"),
                 status=UserStatus(user["status"]),
@@ -466,6 +470,7 @@ class AuthService:
                 phone_number=user.get("phone_number"),
                 date_of_birth=user.get("date_of_birth"),
                 country=user.get("country"),
+                id_number=user.get("id_number"),
                 bio=user.get("bio"),
                 profile_picture_url=user.get("profile_picture_url"),
                 status=UserStatus(user["status"]),
@@ -570,9 +575,16 @@ class AuthService:
         # Check if hashed_password is a bcrypt hash (starts with $2a$ or $2b$)
         if hashed_password.startswith(('$2a$', '$2b$')):
             try:
-                # Truncate password to 72 bytes to match bcrypt's behavior during hashing
+                # First try with truncated password (for new accounts)
                 truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-                return pwd_context.verify(truncated_password, hashed_password)
+                if pwd_context.verify(truncated_password, hashed_password):
+                    return True
+
+                # If that fails, try with original password if it's <=72 bytes (for old accounts)
+                if len(plain_password.encode('utf-8')) <= 72:
+                    return pwd_context.verify(plain_password, hashed_password)
+
+                return False
             except ValueError as e:
                 if "password cannot be longer than 72 bytes" in str(e):
                     # If we still get this error, try with even more truncation
@@ -644,7 +656,7 @@ class AuthService:
     async def _get_user_by_email(self, email: str, db: Session) -> Optional[Dict[str, Any]]:
         """Get user by email."""
         from app.database.models import User as DBUser
-        
+
         user = db.query(DBUser).filter(DBUser.email == email).first()
         if user:
             return {
@@ -655,6 +667,7 @@ class AuthService:
                 "phone_number": user.phone_number,
                 "date_of_birth": user.date_of_birth,
                 "country": user.country,
+                "id_number": user.id_number,
                 "bio": user.bio,
                 "profile_picture_url": user.profile_picture_url,
                 "status": user.status,
@@ -674,7 +687,7 @@ class AuthService:
     async def _get_user_by_id(self, user_id: str, db: Session) -> Optional[Dict[str, Any]]:
         """Get user by ID."""
         from app.database.models import User as DBUser
-        
+
         user = db.query(DBUser).filter(DBUser.id == user_id).first()
         if user:
             return {
@@ -685,6 +698,7 @@ class AuthService:
                 "phone_number": user.phone_number,
                 "date_of_birth": user.date_of_birth,
                 "country": user.country,
+                "id_number": user.id_number,
                 "bio": user.bio,
                 "profile_picture_url": user.profile_picture_url,
                 "status": user.status,
