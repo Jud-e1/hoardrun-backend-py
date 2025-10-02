@@ -132,7 +132,7 @@ class CardStatusEnum(enum.Enum):
 class User(Base, TimestampMixin):
     """User model."""
     __tablename__ = "users"
-    
+
     id = Column(String, primary_key=True, default=generate_uuid)
     email = Column(String, unique=True, nullable=False, index=True)
     first_name = Column(String, nullable=False)
@@ -140,7 +140,7 @@ class User(Base, TimestampMixin):
     phone_number = Column(String)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
-    
+
     # Authentication fields
     password_hash = Column(String, nullable=False)
     email_verification_token = Column(String)
@@ -148,13 +148,14 @@ class User(Base, TimestampMixin):
     password_reset_token = Column(String)
     password_reset_expires = Column(DateTime(timezone=True))
     last_login_at = Column(DateTime(timezone=True))
-    
+
     # Profile fields
     date_of_birth = Column(String)
     country = Column(String)
+    id_number = Column(String)
     bio = Column(Text)
     profile_picture_url = Column(String)
-    
+
     # Status and role
     status = Column(String, default="pending")  # pending, active, suspended, deactivated
     role = Column(String, default="user")  # user, premium, admin
