@@ -567,9 +567,21 @@ class AuthService:
     
     def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash."""
-        # Truncate password to 72 bytes to match bcrypt's behavior during hashing
-        truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-        return pwd_context.verify(truncated_password, hashed_password)
+        # Check if hashed_password is a bcrypt hash (starts with $2a$ or $2b$)
+        if hashed_password.startswith(('$2a$', '$2b$')):
+            try:
+                # Truncate password to 72 bytes to match bcrypt's behavior during hashing
+                truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+                return pwd_context.verify(truncated_password, hashed_password)
+            except ValueError as e:
+                if "password cannot be longer than 72 bytes" in str(e):
+                    # If we still get this error, try with even more truncation
+                    truncated_password = plain_password.encode('utf-8')[:50].decode('utf-8', errors='ignore')
+                    return pwd_context.verify(truncated_password, hashed_password)
+                raise
+        else:
+            # If not a bcrypt hash, assume it's plain text and compare directly
+            return plain_password == hashed_password
     
     def _create_access_token(self, user: Dict[str, Any]) -> str:
         """Create JWT access token."""
