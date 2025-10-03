@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 import os
 
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__truncate_error=True, deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT settings
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
