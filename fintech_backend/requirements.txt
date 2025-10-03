@@ -27,3 +27,5 @@ alembic
 # Cryptography and security dependencies for API integrations
 cryptography
 pyopenssl
+
+jose
