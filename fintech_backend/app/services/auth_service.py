@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
 
 
 class AuthService:
@@ -566,16 +566,20 @@ class AuthService:
     # Private helper methods
     def _hash_password(self, password: str) -> str:
         """Hash password using bcrypt."""
-        # Truncate password to 72 characters to match bcrypt's limitation
-        password = password[:72]
+        # Truncate password to 72 bytes to match bcrypt's limitation
+        password_bytes = password.encode('utf-8')
+        password_bytes = password_bytes[:72]
+        password = password_bytes.decode('utf-8', errors='ignore')
         return pwd_context.hash(password)
     
     def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash."""
         # Check if hashed_password is a bcrypt hash (starts with $2a$ or $2b$)
         if hashed_password.startswith(('$2a$', '$2b$')):
-            # Truncate password to 72 characters to match bcrypt's limitation
-            plain_password = plain_password[:72]
+            # Truncate password to 72 bytes to match bcrypt's limitation
+            password_bytes = plain_password.encode('utf-8')
+            password_bytes = password_bytes[:72]
+            plain_password = password_bytes.decode('utf-8', errors='ignore')
             return pwd_context.verify(plain_password, hashed_password)
         else:
             # If not a bcrypt hash, assume it's plain text and compare directly
