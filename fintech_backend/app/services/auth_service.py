@@ -7,7 +7,7 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
+import bcrypt
 from jose import jwt
 
 from app.models.auth import (
@@ -25,8 +25,7 @@ from app.config.logging import get_logger
 logger = get_logger(__name__)
 settings = get_settings()
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
+# Using bcrypt directly for password hashing
 
 
 class AuthService:
@@ -574,24 +573,19 @@ class AuthService:
         # Truncate password to 72 bytes to match bcrypt's limitation
         password_bytes = password.encode('utf-8')
         password_bytes = password_bytes[:72]
-        password = password_bytes.decode('utf-8', errors='ignore')
-        return pwd_context.hash(password)
+        # Hash the password
+        hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+        return hashed.decode('utf-8')
     
     def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash."""
         # Check if hashed_password is a bcrypt hash (starts with $2a$ or $2b$)
         if hashed_password.startswith(('$2a$', '$2b$')):
-            try:
-                return pwd_context.verify(plain_password, hashed_password)
-            except ValueError as e:
-                if "password cannot be longer than 72 bytes" in str(e):
-                    # Truncate password to 72 bytes and retry
-                    password_bytes = plain_password.encode('utf-8')
-                    password_bytes = password_bytes[:72]
-                    plain_password = password_bytes.decode('utf-8', errors='ignore')
-                    return pwd_context.verify(plain_password, hashed_password)
-                else:
-                    raise
+            # Truncate password to 72 bytes to match bcrypt's limitation
+            password_bytes = plain_password.encode('utf-8')
+            password_bytes = password_bytes[:72]
+            hashed_bytes = hashed_password.encode('utf-8')
+            return bcrypt.checkpw(password_bytes, hashed_bytes)
         else:
             # If not a bcrypt hash, assume it's plain text and compare directly
             return plain_password == hashed_password
