@@ -566,18 +566,16 @@ class AuthService:
     # Private helper methods
     def _hash_password(self, password: str) -> str:
         """Hash password using bcrypt."""
-        # Truncate password to ensure <= 72 bytes to match bcrypt's limitation
-        while len(password.encode('utf-8')) > 72:
-            password = password[:-1]
+        # Truncate password to 72 characters to match bcrypt's limitation
+        password = password[:72]
         return pwd_context.hash(password)
     
     def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash."""
         # Check if hashed_password is a bcrypt hash (starts with $2a$ or $2b$)
         if hashed_password.startswith(('$2a$', '$2b$')):
-            # Truncate password to ensure <= 72 bytes to match bcrypt's limitation
-            while len(plain_password.encode('utf-8')) > 72:
-                plain_password = plain_password[:-1]
+            # Truncate password to 72 characters to match bcrypt's limitation
+            plain_password = plain_password[:72]
             return pwd_context.verify(plain_password, hashed_password)
         else:
             # If not a bcrypt hash, assume it's plain text and compare directly
