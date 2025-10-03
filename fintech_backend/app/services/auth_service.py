@@ -160,8 +160,13 @@ class AuthService:
             if not user:
                 raise UserNotFoundException(f"User with email {request.email} not found")
             
+            # Truncate password to 72 bytes to match bcrypt's limitation
+            password_bytes = request.password.encode('utf-8')
+            password_bytes = password_bytes[:72]
+            truncated_password = password_bytes.decode('utf-8', errors='ignore')
+
             # Verify password
-            if not self._verify_password(request.password, user.get("password_hash", "")):
+            if not self._verify_password(truncated_password, user.get("password_hash", "")):
                 raise AuthenticationException("Invalid email or password")
             
             # Check if user is active
