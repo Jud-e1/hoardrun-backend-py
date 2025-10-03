@@ -566,28 +566,19 @@ class AuthService:
     # Private helper methods
     def _hash_password(self, password: str) -> str:
         """Hash password using bcrypt."""
-        # Truncate password to 72 bytes to match bcrypt's limitation
-        truncated_password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-        return pwd_context.hash(truncated_password)
+        # Truncate password to ensure <= 72 bytes to match bcrypt's limitation
+        while len(password.encode('utf-8')) > 72:
+            password = password[:-1]
+        return pwd_context.hash(password)
     
     def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash."""
         # Check if hashed_password is a bcrypt hash (starts with $2a$ or $2b$)
         if hashed_password.startswith(('$2a$', '$2b$')):
-            # Always truncate password to 72 bytes to match bcrypt's limitation
-            # This ensures we never get the "password cannot be longer than 72 bytes" error
-            truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-
-            # Try with 72-byte truncation (for new accounts created after truncation was implemented)
-            if pwd_context.verify(truncated_password, hashed_password):
-                return True
-
-            # If that fails, try with 50-byte truncation as fallback (for edge cases)
-            truncated_50 = plain_password.encode('utf-8')[:50].decode('utf-8', errors='ignore')
-            if pwd_context.verify(truncated_50, hashed_password):
-                return True
-
-            return False
+            # Truncate password to ensure <= 72 bytes to match bcrypt's limitation
+            while len(plain_password.encode('utf-8')) > 72:
+                plain_password = plain_password[:-1]
+            return pwd_context.verify(plain_password, hashed_password)
         else:
             # If not a bcrypt hash, assume it's plain text and compare directly
             return plain_password == hashed_password
