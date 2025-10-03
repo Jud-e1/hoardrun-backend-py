@@ -576,11 +576,17 @@ class AuthService:
         """Verify password against hash."""
         # Check if hashed_password is a bcrypt hash (starts with $2a$ or $2b$)
         if hashed_password.startswith(('$2a$', '$2b$')):
-            # Truncate password to 72 bytes to match bcrypt's limitation
-            password_bytes = plain_password.encode('utf-8')
-            password_bytes = password_bytes[:72]
-            plain_password = password_bytes.decode('utf-8', errors='ignore')
-            return pwd_context.verify(plain_password, hashed_password)
+            try:
+                return pwd_context.verify(plain_password, hashed_password)
+            except ValueError as e:
+                if "password cannot be longer than 72 bytes" in str(e):
+                    # Truncate password to 72 bytes and retry
+                    password_bytes = plain_password.encode('utf-8')
+                    password_bytes = password_bytes[:72]
+                    plain_password = password_bytes.decode('utf-8', errors='ignore')
+                    return pwd_context.verify(plain_password, hashed_password)
+                else:
+                    raise
         else:
             # If not a bcrypt hash, assume it's plain text and compare directly
             return plain_password == hashed_password
