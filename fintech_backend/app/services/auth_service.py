@@ -574,23 +574,20 @@ class AuthService:
         """Verify password against hash."""
         # Check if hashed_password is a bcrypt hash (starts with $2a$ or $2b$)
         if hashed_password.startswith(('$2a$', '$2b$')):
-            try:
-                # First try with truncated password (for new accounts)
-                truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-                if pwd_context.verify(truncated_password, hashed_password):
-                    return True
+            # Always truncate password to 72 bytes to match bcrypt's limitation
+            # This ensures we never get the "password cannot be longer than 72 bytes" error
+            truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
 
-                # If that fails, try with original password if it's <=72 bytes (for old accounts)
-                if len(plain_password.encode('utf-8')) <= 72:
-                    return pwd_context.verify(plain_password, hashed_password)
+            # Try with 72-byte truncation (for new accounts created after truncation was implemented)
+            if pwd_context.verify(truncated_password, hashed_password):
+                return True
 
-                return False
-            except ValueError as e:
-                if "password cannot be longer than 72 bytes" in str(e):
-                    # If we still get this error, try with even more truncation
-                    truncated_password = plain_password.encode('utf-8')[:50].decode('utf-8', errors='ignore')
-                    return pwd_context.verify(truncated_password, hashed_password)
-                raise
+            # If that fails, try with 50-byte truncation as fallback (for edge cases)
+            truncated_50 = plain_password.encode('utf-8')[:50].decode('utf-8', errors='ignore')
+            if pwd_context.verify(truncated_50, hashed_password):
+                return True
+
+            return False
         else:
             # If not a bcrypt hash, assume it's plain text and compare directly
             return plain_password == hashed_password
