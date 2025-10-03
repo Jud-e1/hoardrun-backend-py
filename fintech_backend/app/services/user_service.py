@@ -258,7 +258,9 @@ class UserService:
     
     def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash."""
-        return pwd_context.verify(plain_password, hashed_password)
+        # Truncate password to 72 bytes to match bcrypt's limitation
+        truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+        return pwd_context.verify(truncated_password, hashed_password)
     
     # Mock database operations (replace with actual database calls)
     async def _update_user_avatar(self, user_id: str, avatar_url: str, db: Session) -> None:
