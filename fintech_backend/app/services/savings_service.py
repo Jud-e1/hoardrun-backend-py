@@ -856,3 +856,149 @@ class SavingsService:
         }
         
         self.repository.data.setdefault("savings_history", {})[history_id] = history_entry
+
+    # Fixed Deposit Methods
+    def _get_interest_rate_for_term(self, term):
+        """Get interest rate for fixed deposit term"""
+        from app.models.savings import FixedDepositTerm
+        rates = {
+            FixedDepositTerm.MONTHS_6: 3.5,
+            FixedDepositTerm.MONTHS_12: 4.5,
+            FixedDepositTerm.MONTHS_24: 4.8,
+            FixedDepositTerm.MONTHS_36: 5.0,
+            FixedDepositTerm.MONTHS_60: 5.5
+        }
+        return rates.get(term, 3.5)
+
+    def _calculate_maturity_amount(self, amount, term):
+        """Calculate maturity amount and interest rate"""
+        from decimal import Decimal
+        rate = self._get_interest_rate_for_term(term)
+        months = int(str(term).split(".")[1])  # Extract months from enum
+        interest = (amount * Decimal(str(rate)) * Decimal(str(months))) / Decimal("1200")  # (P * R * T) / 1200
+        maturity_amount = amount + interest
+        return maturity_amount, rate
+
+    async def get_user_fixed_deposits(self, user_id: str):
+        """Get user's fixed deposits"""
+        from app.models.savings import FixedDepositProfile
+        fixed_deposits = []
+        for fd_data in self.repository.data.get("fixed_deposits", {}).values():
+            if fd_data["user_id"] == user_id:
+                maturity_amount, _ = self._calculate_maturity_amount(fd_data["amount"], fd_data["term"])
+                profile = FixedDepositProfile(
+                    id=fd_data["id"],
+                    amount=fd_data["amount"],
+                    term=fd_data["term"],
+                    interest_rate=fd_data["interest_rate"],
+                    maturity_amount=maturity_amount,
+                    start_date=fd_data["start_date"],
+                    maturity_date=fd_data["maturity_date"],
+                    status=fd_data["status"],
+                    auto_renew=fd_data["auto_renew"],
+                    roundup_enabled=fd_data["roundup_enabled"],
+                    currency=fd_data["currency"],
+                    created_at=fd_data["created_at"]
+                )
+                fixed_deposits.append(profile)
+        return fixed_deposits
+
+    async def create_fixed_deposit(self, user_id: str, fd_data):
+        """Create a new fixed deposit"""
+        from app.models.savings import FixedDepositProfile, FixedDepositStatus
+        import uuid
+        from datetime import datetime
+        fd_id = f"fd_{uuid.uuid4().hex[:8]}"
+        start_date = datetime.now()
+        maturity_date = start_date  # Simplified
+        maturity_amount, interest_rate = self._calculate_maturity_amount(fd_data.amount, fd_data.term)
+
+        fd_record = {
+            "id": fd_id,
+            "user_id": user_id,
+            "amount": fd_data.amount,
+            "term": fd_data.term,
+            "interest_rate": interest_rate,
+            "start_date": start_date,
+            "maturity_date": maturity_date,
+            "status": FixedDepositStatus.ACTIVE,
+            "auto_renew": fd_data.auto_renew,
+            "roundup_enabled": fd_data.roundup_enabled,
+            "currency": fd_data.currency,
+            "created_at": start_date
+        }
+
+        self.repository.data.setdefault("fixed_deposits", {})[fd_id] = fd_record
+
+        return FixedDepositProfile(
+            id=fd_record["id"],
+            amount=fd_record["amount"],
+            term=fd_record["term"],
+            interest_rate=fd_record["interest_rate"],
+            maturity_amount=maturity_amount,
+            start_date=fd_record["start_date"],
+            maturity_date=fd_record["maturity_date"],
+            status=fd_record["status"],
+            auto_renew=fd_record["auto_renew"],
+            roundup_enabled=fd_record["roundup_enabled"],
+            currency=fd_record["currency"],
+            created_at=fd_record["created_at"]
+        )
+
+    # Automated Saving Methods
+    async def get_user_automated_savings(self, user_id: str):
+        """Get user's automated savings"""
+        from app.models.savings import AutomatedSavingProfile
+        automated_savings = []
+        for as_data in self.repository.data.get("automated_savings", {}).values():
+            if as_data["user_id"] == user_id:
+                profile = AutomatedSavingProfile(
+                    id=as_data["id"],
+                    name=as_data["name"],
+                    amount=as_data["amount"],
+                    frequency=as_data["frequency"],
+                    total_saved=as_data["total_saved"],
+                    next_deduction=as_data["next_deduction"],
+                    status=as_data["status"],
+                    currency=as_data["currency"],
+                    created_at=as_data["created_at"]
+                )
+                automated_savings.append(profile)
+        return automated_savings
+
+    async def create_automated_saving(self, user_id: str, as_data):
+        """Create a new automated saving"""
+        from app.models.savings import AutomatedSavingProfile, AutomatedSavingStatus
+        import uuid
+        from datetime import datetime
+        as_id = f"as_{uuid.uuid4().hex[:8]}"
+        start_date = as_data.start_date or datetime.now()
+        next_deduction = start_date  # Simplified
+
+        as_record = {
+            "id": as_id,
+            "user_id": user_id,
+            "name": as_data.name,
+            "amount": as_data.amount,
+            "frequency": as_data.frequency,
+            "total_saved": 0.0,
+            "next_deduction": next_deduction,
+            "status": AutomatedSavingStatus.ACTIVE,
+            "currency": as_data.currency,
+            "created_at": datetime.now()
+        }
+
+        self.repository.data.setdefault("automated_savings", {})[as_id] = as_record
+
+        return AutomatedSavingProfile(
+            id=as_record["id"],
+            name=as_record["name"],
+            amount=as_record["amount"],
+            frequency=as_record["frequency"],
+            total_saved=as_record["total_saved"],
+            next_deduction=as_record["next_deduction"],
+            status=as_record["status"],
+            currency=as_record["currency"],
+            created_at=as_record["created_at"]
+        )
+
