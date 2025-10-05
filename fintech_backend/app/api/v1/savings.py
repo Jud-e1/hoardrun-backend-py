@@ -20,6 +20,14 @@ from app.models.savings import (
     SavingsInsights,
     AutoSaveSettings,
     SavingsGoalStatus,
+    FixedDepositCreateRequest,
+    FixedDepositProfile,
+    AutomatedSavingCreateRequest,
+    AutomatedSavingProfile,
+    FixedDepositTerm,
+    FixedDepositStatus,
+    AutomatedSavingFrequency,
+    AutomatedSavingStatus
     SavingsGoalType
 )
 from app.models.base import BaseResponse, PaginatedResponse
@@ -608,3 +616,146 @@ async def savings_health_check():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Savings service health check failed: {str(e)}"
         )
+
+# Fixed Deposit Endpoints
+@router.get(
+    "/fixed-deposits",
+    response_model=BaseResponse,
+    summary="Get Fixed Deposits",
+    description="Retrieve user's fixed deposits"
+)
+async def get_fixed_deposits(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get user's fixed deposits.
+    
+    Returns all active and matured fixed deposits for the user.
+    """
+    try:
+        fixed_deposits = await savings_service.get_user_fixed_deposits(
+            user_id=current_user["user_id"]
+        )
+        
+        return BaseResponse(
+            success=True,
+            message="Fixed deposits retrieved successfully",
+            data=fixed_deposits
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve fixed deposits: {str(e)}"
+        )
+
+@router.post(
+    "/fixed-deposits",
+    response_model=BaseResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create Fixed Deposit",
+    description="Create a new fixed deposit"
+)
+async def create_fixed_deposit(
+    fd_data: FixedDepositCreateRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Create a new fixed deposit.
+    
+    Locks in savings for a specified term with guaranteed returns.
+    """
+    try:
+        fixed_deposit = await savings_service.create_fixed_deposit(
+            user_id=current_user["user_id"],
+            fd_data=fd_data
+        )
+        
+        return BaseResponse(
+            success=True,
+            message="Fixed deposit created successfully",
+            data=fixed_deposit
+        )
+        
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create fixed deposit: {str(e)}"
+        )
+
+# Automated Savings Endpoints
+@router.get(
+    "/automated-savings",
+    response_model=BaseResponse,
+    summary="Get Automated Savings",
+    description="Retrieve user's automated savings"
+)
+async def get_automated_savings(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get user's automated savings plans.
+    
+    Returns all active automated savings configurations.
+    """
+    try:
+        automated_savings = await savings_service.get_user_automated_savings(
+            user_id=current_user["user_id"]
+        )
+        
+        return BaseResponse(
+            success=True,
+            message="Automated savings retrieved successfully",
+            data=automated_savings
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve automated savings: {str(e)}"
+        )
+
+@router.post(
+    "/automated-savings",
+    response_model=BaseResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create Automated Saving",
+    description="Create a new automated saving plan"
+)
+async def create_automated_saving(
+    as_data: AutomatedSavingCreateRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Create a new automated saving plan.
+    
+    Sets up regular automatic transfers to savings.
+    """
+    try:
+        automated_saving = await savings_service.create_automated_saving(
+            user_id=current_user["user_id"],
+            as_data=as_data
+        )
+        
+        return BaseResponse(
+            success=True,
+            message="Automated saving created successfully",
+            data=automated_saving
+        )
+        
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create automated saving: {str(e)}"
+        )
+

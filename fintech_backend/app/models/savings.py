@@ -287,3 +287,88 @@ class SavingsGoalHistoryDB(BaseModel):
             datetime: lambda v: v.isoformat(),
             Decimal: lambda v: float(v)
         }
+
+class FixedDepositTerm(str, Enum):
+    """Fixed deposit term options"""
+    MONTHS_6 = "6_months"
+    MONTHS_12 = "12_months"
+    MONTHS_24 = "24_months"
+    MONTHS_36 = "36_months"
+    MONTHS_60 = "60_months"
+
+class FixedDepositStatus(str, Enum):
+    """Fixed deposit status"""
+    ACTIVE = "active"
+    MATURED = "matured"
+    WITHDRAWN = "withdrawn"
+    CANCELLED = "cancelled"
+
+class AutomatedSavingFrequency(str, Enum):
+    """Automated saving frequency"""
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+
+class AutomatedSavingStatus(str, Enum):
+    """Automated saving status"""
+    ACTIVE = "active"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+class FixedDepositCreateRequest(BaseModel):
+    """Request model for creating a fixed deposit"""
+    amount: Decimal = Field(..., gt=0, description="Deposit amount")
+    term: FixedDepositTerm = Field(..., description="Deposit term")
+    currency: str = Field(default="USD", min_length=3, max_length=3, description="Currency code")
+    auto_renew: bool = Field(default=False, description="Auto-renew on maturity")
+    roundup_enabled: bool = Field(default=False, description="Enable roundup savings")
+
+class FixedDepositProfile(BaseModel):
+    """Profile model for fixed deposits"""
+    id: str = Field(..., description="Fixed deposit ID")
+    amount: Decimal = Field(..., description="Deposit amount")
+    term: FixedDepositTerm = Field(..., description="Deposit term")
+    interest_rate: float = Field(..., description="Interest rate")
+    maturity_amount: Decimal = Field(..., description="Maturity amount")
+    start_date: datetime = Field(..., description="Start date")
+    maturity_date: datetime = Field(..., description="Maturity date")
+    status: FixedDepositStatus = Field(..., description="Deposit status")
+    auto_renew: bool = Field(..., description="Auto-renew enabled")
+    roundup_enabled: bool = Field(..., description="Roundup enabled")
+    currency: str = Field(..., description="Currency code")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+            Decimal: lambda v: float(v)
+        }
+
+class AutomatedSavingCreateRequest(BaseModel):
+    """Request model for creating automated saving"""
+    name: str = Field(..., min_length=1, max_length=100, description="Saving name")
+    amount: Decimal = Field(..., gt=0, description="Amount per transfer")
+    frequency: AutomatedSavingFrequency = Field(..., description="Transfer frequency")
+    currency: str = Field(default="USD", min_length=3, max_length=3, description="Currency code")
+    start_date: Optional[date] = Field(None, description="Start date")
+
+class AutomatedSavingProfile(BaseModel):
+    """Profile model for automated savings"""
+    id: str = Field(..., description="Automated saving ID")
+    name: str = Field(..., description="Saving name")
+    amount: Decimal = Field(..., description="Amount per transfer")
+    frequency: AutomatedSavingFrequency = Field(..., description="Transfer frequency")
+    total_saved: Decimal = Field(..., description="Total amount saved")
+    next_deduction: datetime = Field(..., description="Next deduction date")
+    status: AutomatedSavingStatus = Field(..., description="Saving status")
+    currency: str = Field(..., description="Currency code")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+            date: lambda v: v.isoformat(),
+            Decimal: lambda v: float(v)
+        }
+
