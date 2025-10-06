@@ -27,7 +27,7 @@ from app.models.savings import (
     FixedDepositTerm,
     FixedDepositStatus,
     AutomatedSavingFrequency,
-    AutomatedSavingStatus
+    AutomatedSavingStatus,
     SavingsGoalType
 )
 from app.models.base import BaseResponse, PaginatedResponse
