@@ -141,8 +141,44 @@ class Settings(BaseSettings):
     
     # Database settings
     database_url: str = Field(
-        default="sqlite:///./fintech.db", 
+        default="sqlite:///./fintech.db",
         description="Database connection URL"
+    )
+    database_pool_size: int = Field(
+        default=20,
+        description="Database connection pool size"
+    )
+    database_max_overflow: int = Field(
+        default=30,
+        description="Database connection pool max overflow"
+    )
+    database_pool_timeout: int = Field(
+        default=30,
+        description="Database connection pool timeout in seconds"
+    )
+    database_pool_recycle: int = Field(
+        default=3600,
+        description="Database connection pool recycle time in seconds"
+    )
+    database_pool_pre_ping: bool = Field(
+        default=True,
+        description="Enable database connection pool pre-ping"
+    )
+    database_echo: bool = Field(
+        default=False,
+        description="Enable SQLAlchemy query logging"
+    )
+    database_ssl_mode: str = Field(
+        default="prefer",
+        description="PostgreSQL SSL mode (disable, allow, prefer, require, verify-ca, verify-full)"
+    )
+    database_connect_timeout: int = Field(
+        default=10,
+        description="Database connection timeout in seconds"
+    )
+    database_command_timeout: int = Field(
+        default=60,
+        description="Database command timeout in seconds"
     )
     
     # Redis settings
