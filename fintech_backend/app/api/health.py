@@ -8,7 +8,7 @@ from datetime import datetime
 import os
 import sys
 import psutil
-from app.database import check_database_connection, get_database_info
+from app.database.config import check_database_connection, get_database_info
 from app.config.settings import get_settings
 
 router = APIRouter(prefix="/health", tags=["Health"])

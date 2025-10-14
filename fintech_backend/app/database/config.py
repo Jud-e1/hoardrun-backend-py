@@ -1,7 +1,7 @@
 """
 Database configuration and session management.
 """
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool, QueuePool
@@ -36,7 +36,6 @@ def get_engine_config():
             "pool_timeout": settings.database_pool_timeout,
             "connect_args": {
                 "connect_timeout": settings.database_connect_timeout,
-                "command_timeout": settings.database_command_timeout,
                 "sslmode": settings.database_ssl_mode,
                 "application_name": f"{settings.app_name} v{settings.app_version}",
             }
@@ -52,6 +51,17 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Create Base class for models
 Base = declarative_base()
+
+
+def create_tables():
+    """Create all database tables."""
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Error creating database tables: {e}")
+        return False
 
 
 def get_db():
@@ -86,7 +96,7 @@ def check_database_connection():
     """
     try:
         with engine.connect() as connection:
-            connection.execute("SELECT 1")
+            connection.execute(text("SELECT 1"))
         logger.info("Database connection check successful")
         return True
     except Exception as e:
@@ -102,10 +112,10 @@ def get_database_info():
         with engine.connect() as connection:
             # Get database version
             if settings.database_url.startswith("postgresql"):
-                result = connection.execute("SELECT version()")
+                result = connection.execute(text("SELECT version()"))
                 version = result.fetchone()[0]
             elif settings.database_url.startswith("sqlite"):
-                result = connection.execute("SELECT sqlite_version()")
+                result = connection.execute(text("SELECT sqlite_version()"))
                 version = f"SQLite {result.fetchone()[0]}"
             else:
                 version = "Unknown"

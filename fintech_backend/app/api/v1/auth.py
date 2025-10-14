@@ -74,19 +74,29 @@ async def login_user(
 ):
     """
     Authenticate user and return access tokens with user data.
-    
+
     Validates credentials and returns JWT tokens and user profile for API access.
     """
     try:
         logger.info(f"API: Login attempt for email {request.email}")
-        
+
+        # Test database connection first
+        try:
+            from app.database.config import check_database_connection
+            if not check_database_connection():
+                logger.error("Database connection check failed during login")
+                raise HTTPException(status_code=503, detail="Database service unavailable")
+        except Exception as db_error:
+            logger.error(f"Database connection error during login: {db_error}")
+            raise HTTPException(status_code=503, detail=f"Database connection error: {str(db_error)}")
+
         result = await auth_service.authenticate_user(request, db)
-        
+
         return success_response(
             data=result,
             message="Login successful"
         )
-        
+
     except AuthenticationException as e:
         logger.error(f"Authentication failed: {e}")
         raise HTTPException(status_code=401, detail=str(e))
@@ -98,7 +108,7 @@ async def login_user(
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error(f"Error during login: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.post("/logout", response_model=dict)

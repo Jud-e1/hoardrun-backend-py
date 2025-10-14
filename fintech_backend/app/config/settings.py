@@ -176,10 +176,6 @@ class Settings(BaseSettings):
         default=10,
         description="Database connection timeout in seconds"
     )
-    database_command_timeout: int = Field(
-        default=60,
-        description="Database command timeout in seconds"
-    )
     
     # Redis settings
     redis_url: str = Field(
