@@ -1,0 +1,36 @@
+# Minimal requirements for HoardRun backend (without problematic packages)
+
+# Core FastAPI dependencies
+fastapi==0.119.0
+uvicorn==0.37.0
+pydantic==2.12.1
+pydantic-settings==2.11.0
+email-validator==2.3.0
+python-multipart==0.0.20
+python-dotenv==1.1.1
+httpx==0.28.1
+
+# Security and auth
+python-jose[cryptography]==3.5.0
+passlib[bcrypt]==1.7.4
+
+# Database dependencies
+psycopg2-binary==2.9.11
+sqlalchemy==2.0.44
+alembic==1.17.0
+
+# Date and time utilities
+python-dateutil==2.9.0.post0
+
+# Logging
+structlog==25.4.0
+
+# Rate limiting (without redis for now)
+slowapi==0.1.9
+
+# System utilities
+psutil==7.1.0
+
+# Cryptography
+cryptography==46.0.2
+pyopenssl==25.3.0

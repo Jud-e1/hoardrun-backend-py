@@ -650,34 +650,38 @@ class AuthService:
     # Database operations
     async def _get_user_by_email(self, email: str, db: Session) -> Optional[Dict[str, Any]]:
         """Get user by email."""
-        from app.database.models import User as DBUser
+        try:
+            from app.database.models import User as DBUser
 
-        user = db.query(DBUser).filter(DBUser.email == email).first()
-        if user:
-            return {
-                "id": user.id,
-                "email": user.email,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "phone_number": user.phone_number,
-                "date_of_birth": user.date_of_birth,
-                "country": user.country,
-                "id_number": user.id_number,
-                "bio": user.bio,
-                "profile_picture_url": user.profile_picture_url,
-                "status": user.status,
-                "role": user.role,
-                "email_verified": user.email_verified,
-                "password_hash": user.password_hash,
-                "email_verification_token": user.email_verification_token,
-                "password_reset_token": user.password_reset_token,
-                "password_reset_expires": user.password_reset_expires,
-                "last_login_at": user.last_login_at,
-                "created_at": user.created_at,
-                "updated_at": user.updated_at,
-                "is_active": user.is_active
-            }
-        return None
+            user = db.query(DBUser).filter(DBUser.email == email).first()
+            if user:
+                return {
+                    "id": user.id,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "phone_number": user.phone_number,
+                    "date_of_birth": user.date_of_birth,
+                    "country": user.country,
+                    "id_number": user.id_number,
+                    "bio": user.bio,
+                    "profile_picture_url": user.profile_picture_url,
+                    "status": user.status,
+                    "role": user.role,
+                    "email_verified": user.email_verified,
+                    "password_hash": user.password_hash,
+                    "email_verification_token": user.email_verification_token,
+                    "password_reset_token": user.password_reset_token,
+                    "password_reset_expires": user.password_reset_expires,
+                    "last_login_at": user.last_login_at,
+                    "created_at": user.created_at,
+                    "updated_at": user.updated_at,
+                    "is_active": user.is_active
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Database error in _get_user_by_email: {e}")
+            raise AuthenticationException(f"Database connection error: {str(e)}")
     
     async def _get_user_by_id(self, user_id: str, db: Session) -> Optional[Dict[str, Any]]:
         """Get user by ID."""
