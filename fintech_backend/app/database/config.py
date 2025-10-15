@@ -28,9 +28,31 @@ def get_engine_config():
             }
         })
     elif settings.database_url.startswith("postgresql"):
-        # PostgreSQL-specific configuration with enhanced SSL handling
-        # Determine SSL mode based on environment
-        ssl_mode = "require" if settings.environment == "production" else settings.database_ssl_mode
+        # PostgreSQL-specific configuration with enhanced SSL handling for Render
+        # Use more permissive SSL settings for cloud databases
+        ssl_mode = settings.database_ssl_mode if hasattr(settings, 'database_ssl_mode') else "prefer"
+
+        # For Render PostgreSQL, we need to be more flexible with SSL
+        connect_args = {
+            "connect_timeout": 60,  # Longer timeout for cloud connections
+            "application_name": f"{settings.app_name} v{settings.app_version}",
+        }
+
+        # Only add SSL settings if not disabled
+        if ssl_mode != "disable":
+            connect_args.update({
+                "sslmode": ssl_mode,
+                "sslcert": None,  # Don't use client certificates
+                "sslkey": None,   # Don't use client keys
+                "sslrootcert": None,  # Don't verify server certificate
+            })
+
+        # Add keepalive settings for stable connections
+        connect_args.update({
+            "keepalives_idle": 600,      # 10 minutes before sending keepalive
+            "keepalives_interval": 30,   # Send keepalive every 30s
+            "keepalives_count": 3,       # Max 3 failed keepalives before disconnect
+        })
 
         config.update({
             "poolclass": QueuePool,
@@ -38,19 +60,8 @@ def get_engine_config():
             "max_overflow": settings.database_max_overflow,
             "pool_timeout": settings.database_pool_timeout,
             "pool_pre_ping": True,  # Verify connections before use
-            "pool_recycle": 1800,   # Recycle connections every 30 minutes (shorter for cloud)
-            "connect_args": {
-                "connect_timeout": 30,  # Longer timeout for cloud connections
-                "sslmode": ssl_mode,
-                "sslcert": None,  # Don't use client certificates
-                "sslkey": None,   # Don't use client keys
-                "sslrootcert": None,  # Don't verify server certificate
-                "application_name": f"{settings.app_name} v{settings.app_version}",
-                "keepalives_idle": 300,      # Shorter keepalive for cloud
-                "keepalives_interval": 60,   # Send keepalive every 60s
-                "keepalives_count": 5,       # More retries for unstable connections
-                "tcp_user_timeout": 30000,   # 30 second TCP timeout
-            }
+            "pool_recycle": 3600,   # Recycle connections every hour
+            "connect_args": connect_args
         })
 
     return config
