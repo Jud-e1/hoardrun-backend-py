@@ -1,1 +1,1 @@
-web: cd fintech_backend && python start_production.py
+web: python app.py
