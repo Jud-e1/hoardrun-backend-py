@@ -1,0 +1,31 @@
+# Core FastAPI dependencies
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+email-validator
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+httpx
+slowapi
+redis
+psutil
+
+# Date and time utilities
+python-dateutil
+
+# Logging
+structlog
+
+# Database dependencies
+psycopg2-binary
+sqlalchemy
+alembic
+
+# Cryptography and security dependencies for API integrations
+cryptography
+pyopenssl
+
+jose
