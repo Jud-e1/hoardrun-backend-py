@@ -5,7 +5,8 @@ services:
     buildCommand: |
       cd fintech_backend &&
       pip install -r requirements.txt &&
-      alembic upgrade head
+      alembic upgrade head &&
+      python setup_demo_user.py
     startCommand: |
       cd fintech_backend &&
       python start_production.py
