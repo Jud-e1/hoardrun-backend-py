@@ -7,9 +7,7 @@ services:
       cd fintech_backend &&
       alembic upgrade head &&
       python setup_demo_user.py
-    startCommand: |
-      cd fintech_backend &&
-      python start_production.py
+    startCommand: "cd fintech_backend && python start_production.py"
     healthCheckPath: /health
     envVars:
       - key: ENVIRONMENT
