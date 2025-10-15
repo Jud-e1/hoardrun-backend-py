@@ -38,14 +38,13 @@ def get_engine_config():
             "application_name": f"{settings.app_name} v{settings.app_version}",
         }
 
-        # Only add SSL settings if not disabled
-        if ssl_mode != "disable":
-            connect_args.update({
-                "sslmode": ssl_mode,
-                "sslcert": None,  # Don't use client certificates
-                "sslkey": None,   # Don't use client keys
-                "sslrootcert": None,  # Don't verify server certificate
-            })
+        # Add SSL settings - Render PostgreSQL requires SSL
+        connect_args.update({
+            "sslmode": ssl_mode,
+            "sslcert": None,  # Don't use client certificates
+            "sslkey": None,   # Don't use client keys
+            "sslrootcert": None,  # Don't verify server certificate
+        })
 
         # Add keepalive settings for stable connections
         connect_args.update({
