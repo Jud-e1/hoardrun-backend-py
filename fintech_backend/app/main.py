@@ -8,12 +8,14 @@ import uvicorn
 from datetime import datetime
 import os
 import json
+from contextlib import asynccontextmanager
 
 from app.config.settings import get_settings
 from app.config.logging import setup_logging, get_logger
 from app.core.middleware import setup_middleware
 from app.core.exception_handlers import register_exception_handlers
 from app.utils.json_encoder import CustomJSONEncoder
+from app.database.config import check_database_connection, create_tables, initialize_database
 from app.api.health import router as health_router
 from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.auth import router as auth_router
@@ -45,14 +47,53 @@ settings = get_settings()
 setup_logging(settings)
 logger = get_logger("main")
 
-# Create FastAPI application instance with custom JSON encoder
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for FastAPI application.
+    Handles startup and shutdown events.
+    """
+    # Startup
+    logger.info("🚀 Starting HoardRun Backend API...")
+
+    try:
+        # Check database connection
+        logger.info("🔍 Checking database connection...")
+        if not check_database_connection():
+            logger.error("❌ Database connection failed!")
+            raise Exception("Database connection failed")
+        logger.info("✅ Database connection successful!")
+
+        # Initialize database (create tables if they don't exist)
+        logger.info("🗄️ Initializing database...")
+        if not initialize_database():
+            logger.error("❌ Database initialization failed!")
+            raise Exception("Database initialization failed")
+        logger.info("✅ Database initialization successful!")
+
+        logger.info("🎉 Application startup completed successfully!")
+
+    except Exception as e:
+        logger.error(f"💥 Application startup failed: {e}")
+        raise
+
+    yield
+
+    # Shutdown
+    logger.info("🛑 Shutting down HoardRun Backend API...")
+    logger.info("👋 Application shutdown completed!")
+
+
+# Create FastAPI application instance with custom JSON encoder and lifespan
 app = FastAPI(
     title=settings.app_name,
     description="A comprehensive fintech backend service providing REST API endpoints for financial operations",
     version=settings.app_version,
     docs_url="/docs",
     redoc_url="/redoc",
-    debug=settings.debug
+    debug=settings.debug,
+    lifespan=lifespan
 )
 
 # Override the default JSON encoder

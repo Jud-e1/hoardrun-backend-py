@@ -17,15 +17,47 @@ router = APIRouter(prefix="/health", tags=["Health"])
 @router.get("/")
 async def basic_health_check():
     """
-    Basic health check endpoint.
-    
+    Basic health check endpoint with database connectivity.
+    This is used by Render to determine if the service is ready.
+
     Returns:
-        dict: Basic service health status
+        dict: Basic service health status including database
     """
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    try:
+        # Check database connection
+        db_healthy = check_database_connection()
+
+        if db_healthy:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "healthy",
+                    "database": "connected",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "service": "hoardrun-backend"
+                }
+            )
+        else:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "unhealthy",
+                    "database": "disconnected",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "service": "hoardrun-backend"
+                }
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "database": "error",
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat(),
+                "service": "hoardrun-backend"
+            }
+        )
 
 
 @router.get("/detailed")
