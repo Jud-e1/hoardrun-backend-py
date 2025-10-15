@@ -16,6 +16,8 @@ services:
         value: production
       - key: DEBUG
         value: false
+      - key: DATABASE_SSL_MODE
+        value: require
       - key: HOST
         value: 0.0.0.0
       - key: PORT

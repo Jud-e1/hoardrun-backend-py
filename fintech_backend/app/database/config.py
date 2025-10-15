@@ -29,20 +29,27 @@ def get_engine_config():
         })
     elif settings.database_url.startswith("postgresql"):
         # PostgreSQL-specific configuration with enhanced SSL handling
+        # Determine SSL mode based on environment
+        ssl_mode = "require" if settings.environment == "production" else settings.database_ssl_mode
+
         config.update({
             "poolclass": QueuePool,
             "pool_size": settings.database_pool_size,
             "max_overflow": settings.database_max_overflow,
             "pool_timeout": settings.database_pool_timeout,
             "pool_pre_ping": True,  # Verify connections before use
-            "pool_recycle": 3600,   # Recycle connections every hour
+            "pool_recycle": 1800,   # Recycle connections every 30 minutes (shorter for cloud)
             "connect_args": {
-                "connect_timeout": settings.database_connect_timeout,
-                "sslmode": settings.database_ssl_mode,
+                "connect_timeout": 30,  # Longer timeout for cloud connections
+                "sslmode": ssl_mode,
+                "sslcert": None,  # Don't use client certificates
+                "sslkey": None,   # Don't use client keys
+                "sslrootcert": None,  # Don't verify server certificate
                 "application_name": f"{settings.app_name} v{settings.app_version}",
-                "keepalives_idle": 600,      # Keep connection alive
-                "keepalives_interval": 30,   # Send keepalive every 30s
-                "keepalives_count": 3,       # Max 3 failed keepalives before disconnect
+                "keepalives_idle": 300,      # Shorter keepalive for cloud
+                "keepalives_interval": 60,   # Send keepalive every 60s
+                "keepalives_count": 5,       # More retries for unstable connections
+                "tcp_user_timeout": 30000,   # 30 second TCP timeout
             }
         })
 
