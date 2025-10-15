@@ -17,7 +17,7 @@ services:
       - key: DEBUG
         value: false
       - key: DATABASE_SSL_MODE
-        value: disable
+        value: require
       - key: HOST
         value: 0.0.0.0
       - key: PORT
@@ -26,7 +26,7 @@ services:
           name: hoardrun-backend
           property: port
       - key: DATABASE_URL
-        value: postgresql://hoardrun_user:ILG8KrjozdCHMtAw3NgwUzW39HZVGIab@dpg-d2v7m1ogjchc73auh69g-a.oregon-postgres.render.com/hoardrun
+        value: postgresql://hoardrun_user:ILG8KrjozdCHMtAw3NgwUzW39HZVGIab@dpg-d2v7m1ogjchc73auh69g-a.oregon-postgres.render.com/hoardrun?sslmode=require
       - key: SECRET_KEY
         generateValue: true
       - key: APP_NAME
