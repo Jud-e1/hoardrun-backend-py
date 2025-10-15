@@ -75,13 +75,6 @@ def get_db():
         db.close()
 
 
-def create_tables():
-    """
-    Create all tables in the database.
-    """
-    Base.metadata.create_all(bind=engine)
-
-
 def drop_tables():
     """
     Drop all tables in the database.
