@@ -16,3 +16,7 @@ from app.main import app
 
 # WSGI application for gunicorn
 application = app
+
+# Also provide these aliases in case Render is looking for them
+wsgi = app
+your_application = app
