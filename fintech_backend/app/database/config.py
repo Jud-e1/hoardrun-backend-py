@@ -73,11 +73,21 @@ def get_db():
     """
     Dependency to get database session.
     """
-    db = SessionLocal()
+    db = None
     try:
+        db = SessionLocal()
+        # Test the connection by executing a simple query
+        db.execute(text("SELECT 1"))
         yield db
+    except Exception as e:
+        logger.error(f"Database session creation failed: {e}")
+        if db:
+            db.close()
+        # Re-raise the exception to be handled by the endpoint
+        raise
     finally:
-        db.close()
+        if db:
+            db.close()
 
 
 def drop_tables():

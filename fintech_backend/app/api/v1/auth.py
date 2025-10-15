@@ -80,16 +80,8 @@ async def login_user(
     try:
         logger.info(f"API: Login attempt for email {request.email}")
 
-        # Test database connection first
-        try:
-            from app.database.config import check_database_connection
-            if not check_database_connection():
-                logger.error("Database connection check failed during login")
-                raise HTTPException(status_code=503, detail="Database service unavailable")
-        except Exception as db_error:
-            logger.error(f"Database connection error during login: {db_error}")
-            raise HTTPException(status_code=503, detail=f"Database connection error: {str(db_error)}")
-
+        # The database connection will be tested when we try to use it
+        # No need for explicit pre-check as it can cause unnecessary failures
         result = await auth_service.authenticate_user(request, db)
 
         return success_response(
@@ -107,8 +99,20 @@ async def login_user(
         logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        logger.error(f"Error during login: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        error_msg = str(e)
+        logger.error(f"Error during login: {error_msg}")
+
+        # Check if it's a database connection issue
+        if any(keyword in error_msg.lower() for keyword in [
+            "connection", "database", "postgresql", "ssl", "timeout", "refused"
+        ]):
+            logger.error("Database connection issue detected during login")
+            raise HTTPException(
+                status_code=503,
+                detail="Database service temporarily unavailable. Please try again in a moment."
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/logout", response_model=dict)
