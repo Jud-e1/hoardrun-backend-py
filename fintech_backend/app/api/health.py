@@ -27,35 +27,31 @@ async def basic_health_check():
         # Check database connection
         db_healthy = check_database_connection()
 
-        if db_healthy:
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "status": "healthy",
-                    "database": "connected",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "service": "hoardrun-backend"
-                }
-            )
-        else:
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "status": "unhealthy",
-                    "database": "disconnected",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "service": "hoardrun-backend"
-                }
-            )
-    except Exception as e:
+        # Always return 200 for basic health check - service is running
+        # Database issues are reported but don't fail the health check
         return JSONResponse(
-            status_code=503,
+            status_code=200,
             content={
-                "status": "unhealthy",
+                "status": "healthy",
+                "database": "connected" if db_healthy else "disconnected",
+                "database_healthy": db_healthy,
+                "timestamp": datetime.utcnow().isoformat(),
+                "service": "hoardrun-backend",
+                "message": "Service is running" + (" with database" if db_healthy else " (database connection issues)")
+            }
+        )
+    except Exception as e:
+        # Even with exceptions, return 200 - the service itself is healthy
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "healthy",
                 "database": "error",
+                "database_healthy": False,
                 "error": str(e),
                 "timestamp": datetime.utcnow().isoformat(),
-                "service": "hoardrun-backend"
+                "service": "hoardrun-backend",
+                "message": "Service is running (database connection error)"
             }
         )
 

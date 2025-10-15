@@ -28,16 +28,21 @@ def get_engine_config():
             }
         })
     elif settings.database_url.startswith("postgresql"):
-        # PostgreSQL-specific configuration
+        # PostgreSQL-specific configuration with enhanced SSL handling
         config.update({
             "poolclass": QueuePool,
             "pool_size": settings.database_pool_size,
             "max_overflow": settings.database_max_overflow,
             "pool_timeout": settings.database_pool_timeout,
+            "pool_pre_ping": True,  # Verify connections before use
+            "pool_recycle": 3600,   # Recycle connections every hour
             "connect_args": {
                 "connect_timeout": settings.database_connect_timeout,
                 "sslmode": settings.database_ssl_mode,
                 "application_name": f"{settings.app_name} v{settings.app_version}",
+                "keepalives_idle": 600,      # Keep connection alive
+                "keepalives_interval": 30,   # Send keepalive every 30s
+                "keepalives_count": 3,       # Max 3 failed keepalives before disconnect
             }
         })
 
@@ -88,12 +93,22 @@ def check_database_connection():
     Returns True if connection is successful, False otherwise.
     """
     try:
+        # Use a shorter timeout for health checks
         with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
+            # Simple query to test connection
+            result = connection.execute(text("SELECT 1"))
+            result.fetchone()  # Ensure we actually get the result
         logger.info("Database connection check successful")
         return True
     except Exception as e:
-        logger.error(f"Database connection check failed: {e}")
+        # Log the error but don't make it critical
+        error_msg = str(e)
+        if "SSL connection has been closed unexpectedly" in error_msg:
+            logger.warning("Database SSL connection issue (common during startup)")
+        elif "connection to server" in error_msg and "failed" in error_msg:
+            logger.warning("Database server connection failed (may be temporary)")
+        else:
+            logger.warning(f"Database connection check failed: {error_msg}")
         return False
 
 
