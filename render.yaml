@@ -3,8 +3,8 @@ services:
     name: hoardrun-backend
     env: python
     buildCommand: |
+      pip install -r fintech_backend/requirements.txt &&
       cd fintech_backend &&
-      pip install -r requirements.txt &&
       alembic upgrade head &&
       python setup_demo_user.py
     startCommand: |
