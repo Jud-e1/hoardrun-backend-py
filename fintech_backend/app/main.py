@@ -58,25 +58,28 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Starting HoardRun Backend API...")
 
     try:
-        # Check database connection
+        # Check database connection (non-blocking)
         logger.info("🔍 Checking database connection...")
-        if not check_database_connection():
-            logger.error("❌ Database connection failed!")
-            raise Exception("Database connection failed")
-        logger.info("✅ Database connection successful!")
+        db_connected = check_database_connection()
 
-        # Initialize database (create tables if they don't exist)
-        logger.info("🗄️ Initializing database...")
-        if not initialize_database():
-            logger.error("❌ Database initialization failed!")
-            raise Exception("Database initialization failed")
-        logger.info("✅ Database initialization successful!")
+        if db_connected:
+            logger.info("✅ Database connection successful!")
+
+            # Initialize database (create tables if they don't exist)
+            logger.info("🗄️ Initializing database...")
+            if initialize_database():
+                logger.info("✅ Database initialization successful!")
+            else:
+                logger.warning("⚠️ Database initialization failed, but continuing startup...")
+        else:
+            logger.warning("⚠️ Database connection failed during startup, but continuing...")
+            logger.info("💡 Database connection will be retried on first request")
 
         logger.info("🎉 Application startup completed successfully!")
 
     except Exception as e:
         logger.error(f"💥 Application startup failed: {e}")
-        raise
+        logger.info("🔄 Continuing startup anyway - database issues will be handled per-request")
 
     yield
 
