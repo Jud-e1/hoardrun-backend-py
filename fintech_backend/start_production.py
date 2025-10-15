@@ -94,8 +94,8 @@ def initialize_application():
 
 
 def start_server():
-    """Start the uvicorn server."""
-    import uvicorn
+    """Start the gunicorn server with uvicorn workers."""
+    import subprocess
     
     # Get settings
     settings = get_settings()
@@ -105,20 +105,33 @@ def start_server():
     port = int(os.getenv("PORT", 8000))
     host = "0.0.0.0"
     
-    logger.info(f"🌐 Starting server on {host}:{port}")
+    logger.info(f"🌐 Starting gunicorn server on {host}:{port}")
     logger.info("📚 API Documentation will be available at /docs")
     
-    # Start the server
-    uvicorn.run(
+    # Start the server using gunicorn with uvicorn workers
+    cmd = [
+        "gunicorn",
         "app.main:app",
-        host=host,
-        port=port,
-        reload=False,  # Never use reload in production
-        log_level=settings.log_level.lower(),
-        access_log=True,
-        server_header=False,  # Security: don't expose server info
-        date_header=False     # Security: don't expose date header
-    )
+        "-w", "4",  # 4 worker processes
+        "-k", "uvicorn.workers.UvicornWorker",
+        "--bind", f"{host}:{port}",
+        "--timeout", "120",
+        "--keep-alive", "5",
+        "--max-requests", "1000",
+        "--max-requests-jitter", "100",
+        "--access-logfile", "-",
+        "--error-logfile", "-",
+        "--log-level", settings.log_level.lower()
+    ]
+    
+    logger.info(f"🚀 Running: {' '.join(cmd)}")
+    
+    # Execute gunicorn
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"💥 Gunicorn failed to start: {e}")
+        raise
 
 
 def main():
