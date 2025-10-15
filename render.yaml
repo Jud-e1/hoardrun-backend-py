@@ -8,7 +8,8 @@ services:
       alembic upgrade head
     startCommand: |
       cd fintech_backend &&
-      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+      python start_production.py
+    healthCheckPath: /health
     envVars:
       - key: ENVIRONMENT
         value: production
@@ -36,7 +37,7 @@ services:
       - key: LOG_FORMAT
         value: json
       - key: CORS_ORIGINS
-        value: '["https://your-frontend-domain.com", "http://localhost:3000"]'
+        value: '["https://hoardrun.vercel.app", "https://hoardruns.vercel.app", "http://localhost:3000", "http://127.0.0.1:3000"]'
       - key: REDIS_URL
         value: redis://localhost:6379/0
       - key: ALGORITHM
@@ -61,6 +62,12 @@ services:
         value: 30
       - key: MAX_REQUEST_SIZE
         value: 1048576
+      - key: DATABASE_CONNECT_TIMEOUT
+        value: 10
+      - key: DATABASE_POOL_TIMEOUT
+        value: 30
+      - key: STARTUP_TIMEOUT
+        value: 120
 
 databases:
   - name: hoardrun-db
