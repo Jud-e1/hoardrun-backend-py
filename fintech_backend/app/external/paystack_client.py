@@ -11,7 +11,6 @@ from typing import Dict, List, Optional, Any
 from enum import Enum
 
 import httpx
-from pypaystack2 import Paystack
 
 from ..config.logging import get_logger, log_external_service_call
 from ..core.exceptions import ExternalServiceException
@@ -55,10 +54,7 @@ class PaystackClient:
         self.environment = environment
         self.webhook_secret = webhook_secret
         self.timeout = timeout
-        
-        # Initialize Paystack SDK
-        self.paystack = Paystack(secret_key=secret_key)
-        
+
         # Base URL for direct API calls
         self.base_url = "https://api.paystack.co"
         
@@ -67,7 +63,8 @@ class PaystackClient:
             timeout=timeout,
             headers={
                 "Authorization": f"Bearer {secret_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Cache-Control": "no-cache"
             }
         )
     
