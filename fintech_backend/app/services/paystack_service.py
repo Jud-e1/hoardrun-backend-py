@@ -33,7 +33,7 @@ class PaystackService:
         user_id: int,
         email: str,
         amount: Decimal,
-        currency: Currency = Currency.NGN,
+        currency: Currency = Currency.GHS,
         reference: Optional[str] = None,
         callback_url: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,

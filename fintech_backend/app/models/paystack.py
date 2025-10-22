@@ -32,9 +32,9 @@ class TransactionStatus(str, Enum):
 
 class Currency(str, Enum):
     """Supported currencies."""
+    GHS = "GHS"  # Ghanaian Cedi (Primary - enabled on test account)
     NGN = "NGN"  # Nigerian Naira
     USD = "USD"  # US Dollar
-    GHS = "GHS"  # Ghanaian Cedi
     ZAR = "ZAR"  # South African Rand
     KES = "KES"  # Kenyan Shilling
 
@@ -44,7 +44,7 @@ class InitializePaymentRequest(BaseModel):
     """Request model for initializing a payment."""
     email: EmailStr = Field(..., description="Customer's email address")
     amount: Decimal = Field(..., gt=0, description="Payment amount")
-    currency: Currency = Field(default=Currency.NGN, description="Payment currency")
+    currency: Currency = Field(default=Currency.GHS, description="Payment currency")
     reference: Optional[str] = Field(None, description="Unique payment reference")
     callback_url: Optional[str] = Field(None, description="URL to redirect after payment")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
