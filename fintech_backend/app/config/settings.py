@@ -116,7 +116,26 @@ class Settings(BaseSettings):
         description="MTN MOMO Target Environment"
     )
     momo_timeout: int = Field(default=30, description="MTN MOMO API timeout in seconds")
-    
+
+    # Paystack API Configuration
+    paystack_public_key: str = Field(
+        default="",
+        description="Paystack Public Key"
+    )
+    paystack_secret_key: str = Field(
+        default="",
+        description="Paystack Secret Key"
+    )
+    paystack_environment: str = Field(
+        default="test",
+        description="Paystack environment (test/live)"
+    )
+    paystack_webhook_secret: str = Field(
+        default="",
+        description="Paystack Webhook Secret"
+    )
+    paystack_timeout: int = Field(default=30, description="Paystack API timeout in seconds")
+
     # Rate limiting settings
     rate_limit_requests: int = Field(default=100, description="Rate limit requests per window")
     rate_limit_window: int = Field(default=60, description="Rate limit window in seconds")
