@@ -29,4 +29,8 @@ alembic
 cryptography
 pyopenssl
 
+# Payment processing
+requests
+pypaystack2
+
 jose
