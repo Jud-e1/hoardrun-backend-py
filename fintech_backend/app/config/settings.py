@@ -160,7 +160,7 @@ class Settings(BaseSettings):
     
     # Database settings
     database_url: str = Field(
-        default="sqlite:///./fintech.db",
+        default="postgresql://hoardrun_srcm_user:DD5GKZbGUUb7jP3Oem6cTnQMBZOchKKx@dpg-d3svuqgdl3ps73avqgeg-a.oregon-postgres.render.com/hoardrun_srcm",
         description="Database connection URL"
     )
     database_pool_size: int = Field(
