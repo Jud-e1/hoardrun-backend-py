@@ -199,8 +199,14 @@ class User(Base, TimestampMixin):
     @validates('phone_number')
     def validate_phone_number(self, key, phone_number):
         """Validate phone number format."""
-        if phone_number and not re.match(r'^\+?[1-9]\d{1,14}$', phone_number):
-            raise ValueError("Invalid phone number format")
+        if phone_number:
+            # Remove all non-digit characters except + for international prefix
+            cleaned = re.sub(r'[^\d+]', '', phone_number)
+            # Allow international format with + or local format
+            # Supports formats like: +1234567890, 1234567890, 0123456789, etc.
+            if not re.match(r'^\+?\d{7,15}$', cleaned):
+                raise ValueError("Invalid phone number format. Must be 7-15 digits, optionally starting with +")
+            return cleaned
         return phone_number
 
     @validates('country')
