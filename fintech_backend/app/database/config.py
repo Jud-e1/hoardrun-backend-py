@@ -40,10 +40,10 @@ def get_engine_config():
 
         # Add SSL settings - Render PostgreSQL requires SSL
         connect_args.update({
-            "sslmode": ssl_mode,
+            "sslmode": "require",  # Force SSL for Render PostgreSQL
             "sslcert": None,  # Don't use client certificates
             "sslkey": None,   # Don't use client keys
-            "sslrootcert": None,  # Don't verify server certificate
+            "sslrootcert": None,  # Don't verify server certificate (Render handles this)
         })
 
         # Add keepalive settings for stable connections
