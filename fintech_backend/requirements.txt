@@ -30,3 +30,5 @@ cryptography
 pyopenssl
 
 jose
+
+plaid-python
