@@ -13,27 +13,12 @@ from ...models.plaid import (
     PlaidSyncRequest, PlaidSyncResponse
 )
 from ...services.plaid_service import get_plaid_service, PlaidService
-from ...core.auth import get_current_user
+from ...auth.dependencies import get_current_user_id, get_current_user
 from ...config.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/plaid", tags=["plaid"])
-security = HTTPBearer()
-
-
-async def get_current_user_id(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-) -> str:
-    """Extract user ID from JWT token."""
-    try:
-        return await get_current_user(credentials)
-    except Exception as e:
-        logger.error(f"Authentication error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials"
-        )
 
 
 @router.post("/link-token", response_model=PlaidLinkTokenResponse)
@@ -183,7 +168,7 @@ async def get_connection_accounts(
 
 @router.get("/accounts", response_model=List[PlaidAccount])
 async def get_user_accounts(
-    user_id: str = Depends(get_current_user_id),
+    current_user: dict = Depends(get_current_user),
     service: PlaidService = Depends(get_plaid_service)
 ) -> List[PlaidAccount]:
     """
@@ -197,6 +182,7 @@ async def get_user_accounts(
         List of all user's accounts
     """
     try:
+        user_id = current_user["user_id"]
         logger.info(f"Getting all accounts for user {user_id}")
         accounts = await service.get_user_accounts(user_id)
         return accounts
