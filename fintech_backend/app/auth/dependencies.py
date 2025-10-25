@@ -6,9 +6,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from app.auth.jwt_handler import JWTHandler
-from app.database.config import get_db
-from app.repositories.database_repository import UserRepository
+from ..auth.jwt_handler import JWTHandler
+from ..database.config import get_db
+from ..repositories.database_repository import UserRepository
 
 # HTTP Bearer token scheme
 security = HTTPBearer()

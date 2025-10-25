@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     
     # CORS settings
     cors_origins: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8080", "https://hoardruns.vercel.app", "https://hoardrun.vercel.app"], 
+        default=["http://localhost:3000", "http://localhost:8080", "http://localhost:5173", "http://localhost:5175", "https://hoardruns.vercel.app", "https://hoardrun.vercel.app"],
         description="Allowed CORS origins"
     )
     cors_allow_credentials: bool = Field(default=True, description="Allow CORS credentials")

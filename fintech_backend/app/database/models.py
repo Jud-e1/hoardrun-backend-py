@@ -13,7 +13,7 @@ import enum
 import uuid
 import re
 
-from app.database.config import Base
+from .config import Base
 
 
 def generate_uuid():

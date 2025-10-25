@@ -9,21 +9,21 @@ from decimal import Decimal
 from typing import List, Optional, Dict, Any
 import asyncio
 
-from app.models.account import (
+from ..models.account import (
     Account, AccountType, AccountStatus, CurrencyCode, AccountBalance,
     AccountStatement, StatementTransaction, TransactionCategory,
     AccountCreateRequest, AccountUpdateRequest, AccountTransferRequest,
     StatementRequest, BalanceHistoryRequest, BalanceHistoryPoint
 )
-from app.core.exceptions import (
+from ..core.exceptions import (
     ValidationError, NotFoundError, BusinessLogicError,
     InsufficientFundsError, UnauthorizedError
 )
-from app.data.repository import get_repository_manager
-from app.utils.validation import validate_user_exists, validate_currency_amount
-from app.utils.calculations import calculate_fee, calculate_interest
-from app.external.bank_api import get_bank_api_client
-from app.config.logging import get_logger
+from ...data.repository import get_repository_manager
+from ..utils.validators import validate_user_exists, validate_currency_amount
+from ..utils.calculations import calculate_fee, calculate_interest
+from ..external.bank_api import get_bank_api_client
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 

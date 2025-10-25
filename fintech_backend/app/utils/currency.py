@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 from datetime import datetime, UTC
 
 from ..config.settings import Settings
-from ..core.exceptions import InvalidCurrencyException
+from ...core.exceptions import InvalidCurrencyException
 
 
 class CurrencyConverter:

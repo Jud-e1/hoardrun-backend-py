@@ -7,21 +7,21 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import asyncio
 
-from app.models.flat_account import (
+from ...models.flat_account import (
     AccountType, AccountStatus, AccountCreateRequest, AccountUpdateRequest,
     AccountTransferRequest, StatementRequest, BalanceHistoryRequest,
     AccountListResponse, AccountResponse, AccountCreatedResponse,
     AccountBalanceResponse, AccountStatementResponse, BalanceHistoryResponse,
     AccountOverviewResponse, AccountTransferResponse
 )
-from app.services.database_account_service import DatabaseAccountService
-from app.database.config import get_db
-from app.core.exceptions import (
+from ...services.database_account_service import DatabaseAccountService
+from ...database.config import get_db
+from ...core.exceptions import (
     ValidationException, AccountNotFoundException, BusinessRuleViolationException,
     FintechException, InsufficientFundsException
 )
-from app.utils.response import success_response
-from app.config.logging import get_logger
+from ...utils.response import success_response
+from ...config.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -14,8 +14,8 @@ from cryptography.hazmat.backends import default_backend
 import base64
 import uuid
 
-from app.config.settings import get_settings
-from app.config.logging import get_logger
+from ..config.settings import get_settings
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 settings = get_settings()

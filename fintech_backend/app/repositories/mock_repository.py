@@ -220,6 +220,10 @@ class RepositoryManager:
         self.notifications = UserMockRepository()
         self.settings = UserMockRepository()
         self.watchlist = UserMockRepository()
+        self.plaid_connections = UserMockRepository()
+        self.plaid_accounts = UserMockRepository()
+        self.plaid_transactions = UserMockRepository()
+        self.plaid_link_tokens = UserMockRepository()
         
         # Flag to track if mock data has been initialized
         self._mock_data_initialized = False
@@ -545,3 +549,23 @@ def get_settings_repository() -> UserMockRepository:
 def get_watchlist_repository() -> UserMockRepository:
     """Get watchlist repository."""
     return repository_manager.watchlist
+
+
+def get_plaid_connections_repository() -> UserMockRepository:
+    """Get Plaid connections repository."""
+    return repository_manager.plaid_connections
+
+
+def get_plaid_accounts_repository() -> UserMockRepository:
+    """Get Plaid accounts repository."""
+    return repository_manager.plaid_accounts
+
+
+def get_plaid_transactions_repository() -> TransactionMockRepository:
+    """Get Plaid transactions repository."""
+    return repository_manager.plaid_transactions
+
+
+def get_plaid_link_tokens_repository() -> UserMockRepository:
+    """Get Plaid link tokens repository."""
+    return repository_manager.plaid_link_tokens

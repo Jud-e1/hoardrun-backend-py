@@ -8,7 +8,7 @@ from datetime import datetime, date
 from enum import Enum
 from decimal import Decimal
 from pydantic import BaseModel, Field, validator
-from app.models.base import BaseResponse
+from ..models.base import BaseResponse
 
 class SavingsGoalStatus(str, Enum):
     """Savings goal status"""

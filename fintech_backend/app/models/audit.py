@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from enum import Enum
 from pydantic import BaseModel, Field, validator
-from app.models.base import BaseResponse
+from ..models.base import BaseResponse
 
 # Enums for audit and compliance
 class AuditEventType(str, Enum):

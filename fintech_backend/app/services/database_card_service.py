@@ -1,10 +1,10 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from app.database.config import get_db
-from app.repositories.database_repository import CardRepository, AccountRepository
-from app.models.card import CardResponse, CardCreateRequest, CardUpdateRequest
-from app.database.models import Card as DBCard, CardTypeEnum, CardStatusEnum
-from app.core.exceptions import CardNotFoundException, ValidationException
+from ..database.config import get_db
+from ..repositories.database_repository import CardRepository, AccountRepository
+from ..models.card import CardResponse, CardCreateRequest, CardUpdateRequest
+from ..database.models import Card as DBCard, CardTypeEnum, CardStatusEnum
+from ..core.exceptions import CardNotFoundException, ValidationException
 import uuid
 from datetime import datetime, timedelta
 import random

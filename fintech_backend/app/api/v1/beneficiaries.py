@@ -2,26 +2,26 @@
 Beneficiaries API endpoints for managing payment recipients.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status, Body, Query
+from fastapi import APIRouter, HTTPException, Depends, status, Body, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List
 import asyncio
 from datetime import datetime
 
-from app.models.beneficiaries import (
+from ...models.beneficiaries import (
     BeneficiaryCreateRequest, BeneficiaryUpdateRequest, BeneficiaryProfile,
     BeneficiaryListResponse, BeneficiaryResponse, RecentBeneficiariesResponse,
     BeneficiarySearchRequest, BeneficiaryType, BeneficiaryStatus, BeneficiaryStats
 )
-from app.services.beneficiaries_service import BeneficiariesService
-from app.database.config import get_db
-from app.core.exceptions import (
+from ...services.beneficiaries_service import BeneficiariesService
+from ...database.config import get_db
+from ...core.exceptions import (
     ValidationException, AuthenticationException, AuthorizationException,
     UserNotFoundException, NotFoundError
 )
-from app.utils.response import success_response
-from app.config.logging import get_logger
+from ...utils.response import success_response
+from ...config.logging import get_logger
 
 logger = get_logger(__name__)
 security = HTTPBearer()
@@ -362,17 +362,37 @@ async def get_beneficiaries_stats(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.get("/welcome", response_model=dict)
+async def welcome(request: Request):
+    """
+    Welcome endpoint that logs request metadata and returns a welcome message.
+
+    Logs the request method and path, then returns a JSON response with a welcome message.
+    """
+    try:
+        logger.info(f"Request received: {request.method} {request.url.path}")
+
+        return success_response(
+            data={"message": "Welcome to the Beneficiaries API Service!"},
+            message="Welcome message retrieved successfully"
+        )
+
+    except Exception as e:
+        logger.error(f"Error in welcome endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 @router.get("/health", response_model=dict)
 async def beneficiaries_service_health():
     """
     Health check endpoint for beneficiaries service.
-    
+
     Returns the operational status of the beneficiaries service.
     """
     try:
         # Simulate service checks
         await asyncio.sleep(0.01)  # Mock processing time
-        
+
         return success_response(
             data={
                 "service": "beneficiaries_service",
@@ -382,7 +402,7 @@ async def beneficiaries_service_health():
             },
             message="Beneficiaries service is healthy"
         )
-        
+
     except Exception as e:
         logger.error(f"Beneficiaries service health check failed: {e}")
         raise HTTPException(status_code=503, detail="Service unavailable")

@@ -9,10 +9,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.main import app
-from app.database.config import Base, get_db
-from app.database.models import User, Account, Transaction, Card
-from app.config.settings import get_settings
+from ..main import app
+from ..database.config import Base, get_db
+from ..database.models import User, Account, Transaction, Card
+from ..config.settings import get_settings
 
 
 # Test database URL - use SQLite for testing

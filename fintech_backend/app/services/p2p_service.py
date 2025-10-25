@@ -10,15 +10,15 @@ from decimal import Decimal
 from typing import List, Optional, Dict, Any
 from urllib.parse import quote
 
-from app.models.p2p import (
+from ..models.p2p import (
     P2PTransaction, MoneyRequest, SplitBill, PaymentLink, P2PContact,
     P2PTransactionType, P2PStatus, P2PRequestStatus, ContactMethod,
     NotificationPreference, P2PSendRequest, MoneyRequestCreateRequest,
     SplitBillCreateRequest, PaymentLinkCreateRequest, P2PQuoteRequest,
     PaymentLinkPaymentRequest
 )
-from app.models.base import PaginationRequest
-from app.core.exceptions import NotFoundError, ValidationError, BusinessLogicError
+from ..models.base import PaginationRequest
+from ..core.exceptions import NotFoundError, ValidationError, BusinessLogicError
 
 
 class P2PService:

@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from decimal import Decimal
 
-from app.models.mobile_money import (
+from ..models.mobile_money import (
     MobileMoneyTransferRequest, MobileMoneyReceiveRequest, MobileMoneyAccountRequest,
     MobileMoneyDepositRequest, MobileMoneyTransaction, MobileMoneyAccount,
     MobileMoneyProvider_Info, MobileMoneyTransactionFilter, MobileMoneyStats,
@@ -16,13 +16,13 @@ from app.models.mobile_money import (
     MobileMoneyAccountCreate, MobileMoneyAccountUpdate, MobileMoneyProvider,
     TransactionType, TransactionStatus, Currency
 )
-from app.services.auth_service import AuthService
-from app.core.exceptions import (
+from ..services.auth_service import AuthService
+from ..core.exceptions import (
     ValidationException, AuthenticationException, NotFoundError, BusinessLogicError
 )
-from app.config.settings import get_settings
-from app.config.logging import get_logger
-from app.external.mtn_momo_api import get_mtn_momo_client
+from ..config.settings import get_settings
+from ..config.logging import get_logger
+from ..external.mtn_momo_api import get_mtn_momo_client
 
 logger = get_logger(__name__)
 settings = get_settings()

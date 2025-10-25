@@ -9,19 +9,19 @@ from typing import Optional
 import asyncio
 from datetime import datetime, timedelta
 
-from app.models.auth import (
+from ...models.auth import (
     UserRegisterRequest, UserLoginRequest, UserResponse, TokenResponse, LoginResponse,
     PasswordResetRequest, PasswordChangeRequest, EmailVerificationRequest,
     UserProfileUpdateRequest, UserSettingsUpdateRequest
 )
-from app.services.auth_service import AuthService
-from app.database.config import get_db
-from app.core.exceptions import (
+from ...services.auth_service import AuthService
+from ...database.config import get_db
+from ...core.exceptions import (
     ValidationException, AuthenticationException, AuthorizationException,
     UserNotFoundException, EmailAlreadyExistsException
 )
-from app.utils.response import success_response
-from app.config.logging import get_logger
+from ...utils.response import success_response
+from ...config.logging import get_logger
 
 logger = get_logger(__name__)
 security = HTTPBearer()

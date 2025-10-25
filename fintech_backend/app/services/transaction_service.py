@@ -11,20 +11,20 @@ from typing import List, Optional, Dict, Any
 import asyncio
 from difflib import SequenceMatcher
 
-from app.models.transaction import (
+from ..models.transaction import (
     Transaction, TransactionType, TransactionStatus, TransactionDirection,
     MerchantCategory, PaymentMethod, TransactionDetails, TransactionSummary,
     TransactionListRequest, TransactionSearchRequest, TransactionUpdateRequest,
     TransactionDisputeRequest, TransactionCategorizeRequest, TransactionExportRequest,
     TransactionCategoryStats, BalanceHistoryPoint
 )
-from app.core.exceptions import (
+from ..core.exceptions import (
     ValidationError, NotFoundError, BusinessLogicError,
     UnauthorizedError
 )
-from app.data.repository import get_repository_manager
-from app.utils.validation import validate_user_exists, validate_account_exists
-from app.config.logging import get_logger
+from ..data.repository import get_repository_manager
+from ..utils.validators import validate_user_exists, validate_account_exists
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 

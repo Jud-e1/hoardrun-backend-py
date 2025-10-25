@@ -10,17 +10,17 @@ from sqlalchemy.orm import Session
 import bcrypt
 from jose import jwt
 
-from app.models.auth import (
+from ..models.auth import (
     UserRegisterRequest, UserLoginRequest, UserProfile, TokenData, LoginData,
     UserProfileUpdateRequest, PasswordChangeRequest, UserCreate, UserUpdate,
     UserStatus, UserRole, JWTPayload
 )
-from app.core.exceptions import (
+from ..core.exceptions import (
     ValidationException, AuthenticationException, AuthorizationException,
     UserNotFoundException, EmailAlreadyExistsException
 )
-from app.config.settings import get_settings
-from app.config.logging import get_logger
+from ..config.settings import get_settings
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -67,7 +67,7 @@ class AuthService:
             # Generate email verification token
             verification_token = self._generate_verification_token()
             
-            # Create user data
+            # Create user data - regular users start as PENDING and unverified
             user_data = UserCreate(
                 email=request.email,
                 password_hash=password_hash,
@@ -77,14 +77,14 @@ class AuthService:
                 date_of_birth=request.date_of_birth,
                 country=request.country,
                 id_number=request.id_number,
-                status=UserStatus.ACTIVE,
+                status=UserStatus.PENDING,
                 role=UserRole.USER,
-                email_verified=True,
+                email_verified=False,
                 email_verification_token=verification_token
             )
             
             # Save user to database
-            from app.database.models import User as DBUser
+            from ..database.models import User as DBUser
             
             db_user = DBUser(
                 email=user_data.email,
@@ -651,7 +651,7 @@ class AuthService:
     async def _get_user_by_email(self, email: str, db: Session) -> Optional[Dict[str, Any]]:
         """Get user by email."""
         try:
-            from app.database.models import User as DBUser
+            from ..database.models import User as DBUser
 
             user = db.query(DBUser).filter(DBUser.email == email).first()
             if user:
@@ -685,7 +685,7 @@ class AuthService:
     
     async def _get_user_by_id(self, user_id: str, db: Session) -> Optional[Dict[str, Any]]:
         """Get user by ID."""
-        from app.database.models import User as DBUser
+        from ..database.models import User as DBUser
 
         user = db.query(DBUser).filter(DBUser.id == user_id).first()
         if user:
@@ -715,40 +715,148 @@ class AuthService:
         return None
     
     async def _get_user_by_verification_token(self, token: str, db: Session) -> Optional[Dict[str, Any]]:
-        """Get user by verification token (mock implementation)."""
-        return None
+        """Get user by verification token."""
+        try:
+            from ..database.models import User as DBUser
+
+            user = db.query(DBUser).filter(DBUser.email_verification_token == token).first()
+            if user:
+                return {
+                    "id": user.id,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "phone_number": user.phone_number,
+                    "date_of_birth": user.date_of_birth,
+                    "country": user.country,
+                    "id_number": user.id_number,
+                    "bio": user.bio,
+                    "profile_picture_url": user.profile_picture_url,
+                    "status": user.status,
+                    "role": user.role,
+                    "email_verified": user.email_verified,
+                    "password_hash": user.password_hash,
+                    "email_verification_token": user.email_verification_token,
+                    "password_reset_token": user.password_reset_token,
+                    "password_reset_expires": user.password_reset_expires,
+                    "last_login_at": user.last_login_at,
+                    "created_at": user.created_at,
+                    "updated_at": user.updated_at,
+                    "is_active": user.is_active
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error getting user by verification token: {e}")
+            return None
     
     async def _get_user_by_reset_token(self, token: str, db: Session) -> Optional[Dict[str, Any]]:
         """Get user by reset token (mock implementation)."""
         return None
     
     async def _update_last_login(self, user_id: str, db: Session) -> None:
-        """Update user last login timestamp (mock implementation)."""
-        pass
+        """Update user last login timestamp."""
+        try:
+            from ..database.models import User as DBUser
+
+            user = db.query(DBUser).filter(DBUser.id == user_id).first()
+            if user:
+                user.last_login_at = datetime.utcnow()
+                user.updated_at = datetime.utcnow()
+                db.commit()
+                logger.info(f"Updated last login for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error updating last login: {e}")
+            db.rollback()
+            raise
     
     async def _update_user_verification_status(self, user_id: str, db: Session) -> None:
-        """Update user email verification status (mock implementation)."""
-        pass
+        """Update user email verification status."""
+        try:
+            from ..database.models import User as DBUser
+
+            user = db.query(DBUser).filter(DBUser.id == user_id).first()
+            if user:
+                user.email_verified = True
+                user.status = "active"  # Set status to ACTIVE after verification
+                user.updated_at = datetime.utcnow()
+                db.commit()
+                logger.info(f"User {user_id} email verified and status set to ACTIVE")
+        except Exception as e:
+            logger.error(f"Error updating user verification status: {e}")
+            db.rollback()
+            raise
     
     async def _update_verification_token(self, user_id: str, token: str, db: Session) -> None:
-        """Update user verification token (mock implementation)."""
-        pass
+        """Update user verification token."""
+        try:
+            from ..database.models import User as DBUser
+
+            user = db.query(DBUser).filter(DBUser.id == user_id).first()
+            if user:
+                user.email_verification_token = token
+                user.updated_at = datetime.utcnow()
+                db.commit()
+                logger.info(f"Updated verification token for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error updating verification token: {e}")
+            db.rollback()
+            raise
     
     async def _update_reset_token(self, user_id: str, token: str, expires: datetime, db: Session) -> None:
-        """Update user reset token (mock implementation)."""
-        pass
+        """Update user reset token."""
+        try:
+            from ..database.models import User as DBUser
+
+            user = db.query(DBUser).filter(DBUser.id == user_id).first()
+            if user:
+                user.password_reset_token = token
+                user.password_reset_expires = expires
+                user.updated_at = datetime.utcnow()
+                db.commit()
+                logger.info(f"Updated reset token for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error updating reset token: {e}")
+            db.rollback()
+            raise
     
     async def _update_user_password(self, user_id: str, password_hash: str, db: Session) -> None:
-        """Update user password (mock implementation)."""
-        pass
+        """Update user password."""
+        try:
+            from ..database.models import User as DBUser
+
+            user = db.query(DBUser).filter(DBUser.id == user_id).first()
+            if user:
+                user.password_hash = password_hash
+                user.updated_at = datetime.utcnow()
+                db.commit()
+                logger.info(f"Updated password for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error updating user password: {e}")
+            db.rollback()
+            raise
     
     async def _clear_reset_token(self, user_id: str, db: Session) -> None:
-        """Clear user reset token (mock implementation)."""
-        pass
+        """Clear user reset token."""
+        try:
+            from ..database.models import User as DBUser
+
+            user = db.query(DBUser).filter(DBUser.id == user_id).first()
+            if user:
+                user.password_reset_token = None
+                user.password_reset_expires = None
+                user.updated_at = datetime.utcnow()
+                db.commit()
+                logger.info(f"Cleared reset token for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error clearing reset token: {e}")
+            db.rollback()
+            raise
     
     async def _invalidate_user_tokens(self, user_id: str, db: Session) -> None:
-        """Invalidate all user tokens (mock implementation)."""
-        pass
+        """Invalidate all user tokens."""
+        # Note: In a real implementation, you would invalidate tokens in Redis/cache
+        # For now, this is a placeholder as token invalidation would require additional infrastructure
+        logger.info(f"Token invalidation requested for user {user_id} (not implemented)")
     
     async def _send_verification_email(self, email: str, token: str) -> None:
         """Send email verification email (mock implementation)."""

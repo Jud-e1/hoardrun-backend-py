@@ -294,3 +294,4 @@ ValidationError = ValidationException
 BusinessLogicError = BusinessRuleViolationException
 ConflictError = EmailAlreadyExistsException
 AuthenticationError = AuthenticationException
+UnauthorizedError = AuthorizationException
