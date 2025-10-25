@@ -9,17 +9,17 @@ from datetime import datetime
 from decimal import Decimal
 import asyncio
 
-from app.models.transaction import (
+from ...models.transaction import (
     TransactionType, TransactionStatus, TransactionCreateRequest, TransactionFilters,
     TransactionListResponse, TransactionResponse
 )
-from app.services.database_transaction_service import DatabaseTransactionService
-from app.database.config import get_db
-from app.core.exceptions import (
+from ...services.database_transaction_service import DatabaseTransactionService
+from ...database.config import get_db
+from ...core.exceptions import (
     ValidationException, AccountNotFoundException, BusinessRuleViolationException, FintechException
 )
-from app.utils.response import success_response
-from app.config.logging import get_logger
+from ...utils.response import success_response
+from ...config.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -87,7 +87,7 @@ async def list_transactions(
         transactions = transaction_service.get_user_transactions(user_id, filters, db)
         
         # Create a basic summary for the response
-        from app.models.transaction import TransactionSummary
+        from ...models.transaction import TransactionSummary
         from datetime import date
         from decimal import Decimal
         

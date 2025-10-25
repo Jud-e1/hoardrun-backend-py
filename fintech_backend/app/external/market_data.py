@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, UTC
 from typing import Dict, List, Optional, Any
 
 from ..config.logging import get_logger, log_external_service_call
-from ..core.exceptions import ExternalServiceException
+from ...core.exceptions import ExternalServiceException
 
 logger = get_logger("market_data")
 

@@ -7,8 +7,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer
 
-from app.core.auth import get_current_user
-from app.models.kyc import (
+from ...core.auth import get_current_user
+from ...models.kyc import (
     KYCDocumentUploadRequest,
     KYCUpdateRequest,
     FaceVerificationRequest,
@@ -19,9 +19,9 @@ from app.models.kyc import (
     VerificationLevel,
     DocumentType
 )
-from app.models.base import BaseResponse
-from app.services.kyc_service import KYCService
-from app.core.exceptions import ValidationError, NotFoundError, ConflictError
+from ...models.base import BaseResponse
+from ...services.kyc_service import KYCService
+from ...core.exceptions import ValidationError, NotFoundError, ConflictError
 
 router = APIRouter(prefix="/kyc", tags=["KYC"])
 security = HTTPBearer()

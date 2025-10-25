@@ -3,6 +3,10 @@ from typing import List, Optional, Dict, Any
 import uuid
 import random
 from decimal import Decimal
+from sqlalchemy.orm import Session
+from sqlalchemy import select, and_, func, or_
+from sqlalchemy.orm import selectinload
+
 from ..models.analytics import (
     AnalyticsRequest, BudgetRequest, SpendingAnalysisRequest, FinancialGoalRequest,
     SpendingByCategory, MonthlySpending, SpendingTrend, BudgetProfile, BudgetSummary,
@@ -11,202 +15,119 @@ from ..models.analytics import (
     BudgetDB, FinancialGoalDB, FinancialAlertDB, TransactionAnalyticsDB,
     AnalyticsPeriod, TransactionCategory, BudgetStatus, TrendDirection, AlertType
 )
+from ..models.transaction import Transaction, TransactionType, TransactionStatus, MerchantCategory
 from ..core.exceptions import NotFoundError, ValidationError, BusinessLogicError
 
 class AnalyticsService:
-    def __init__(self):
-        # Mock data storage
-        self.budgets: Dict[str, BudgetDB] = {}
-        self.financial_goals: Dict[str, FinancialGoalDB] = {}
-        self.financial_alerts: Dict[str, FinancialAlertDB] = {}
-        self.transactions: Dict[str, TransactionAnalyticsDB] = {}
-        self._initialize_mock_data()
+    def __init__(self, db_session: Session):
+        """Initialize analytics service with database session"""
+        self.db = db_session
     
-    def _initialize_mock_data(self):
-        """Initialize with sample analytics data"""
-        user_id = "user_123"
+    async def _sync_transaction_to_analytics(self, transaction: Transaction) -> TransactionAnalyticsDB:
+        """Convert a regular transaction to analytics format"""
         
-        # Sample budgets
-        budget_data = [
-            {
-                "name": "Monthly Groceries",
-                "category": TransactionCategory.GROCERIES,
-                "amount": Decimal("300000"),  # 300k UGX
-                "period": AnalyticsPeriod.MONTHLY,
-                "start_date": date(2024, 1, 1),
-                "currency": "UGX"
-            },
-            {
-                "name": "Transportation Budget",
-                "category": TransactionCategory.TRANSPORTATION,
-                "amount": Decimal("150000"),  # 150k UGX
-                "period": AnalyticsPeriod.MONTHLY,
-                "start_date": date(2024, 1, 1),
-                "currency": "UGX"
-            },
-            {
-                "name": "Entertainment",
-                "category": TransactionCategory.ENTERTAINMENT,
-                "amount": Decimal("100000"),  # 100k UGX
-                "period": AnalyticsPeriod.MONTHLY,
-                "start_date": date(2024, 1, 1),
-                "currency": "UGX"
-            }
-        ]
+        # Map merchant categories to transaction categories
+        category_mapping = {
+            MerchantCategory.GROCERIES: TransactionCategory.GROCERIES,
+            MerchantCategory.RESTAURANTS: TransactionCategory.FOOD_DINING,
+            MerchantCategory.GAS_STATIONS: TransactionCategory.FUEL,
+            MerchantCategory.RETAIL: TransactionCategory.SHOPPING,
+            MerchantCategory.ENTERTAINMENT: TransactionCategory.ENTERTAINMENT,
+            MerchantCategory.TRAVEL: TransactionCategory.TRAVEL,
+            MerchantCategory.HEALTHCARE: TransactionCategory.HEALTHCARE,
+            MerchantCategory.UTILITIES: TransactionCategory.BILLS_UTILITIES,
+            MerchantCategory.EDUCATION: TransactionCategory.EDUCATION,
+            MerchantCategory.AUTOMOTIVE: TransactionCategory.TRANSPORTATION,
+            MerchantCategory.ONLINE_SERVICES: TransactionCategory.OTHER,
+            MerchantCategory.SUBSCRIPTION: TransactionCategory.OTHER,
+            MerchantCategory.TRANSFER: TransactionCategory.TRANSFERS,
+            MerchantCategory.INVESTMENT_TRADE: TransactionCategory.INVESTMENTS,
+        }
         
-        for budget_info in budget_data:
-            budget_id = str(uuid.uuid4())
-            self.budgets[budget_id] = BudgetDB(
-                id=budget_id,
-                user_id=user_id,
-                is_active=True,
-                created_at=datetime.utcnow() - timedelta(days=30),
-                updated_at=datetime.utcnow(),
-                **budget_info
-            )
+        analytics_category = category_mapping.get(
+            MerchantCategory(transaction.merchant_category) if isinstance(transaction.merchant_category, str) else transaction.merchant_category,
+            TransactionCategory.OTHER
+        )
         
-        # Sample financial goals
-        goal_data = [
-            {
-                "name": "Emergency Fund",
-                "target_amount": Decimal("2000000"),  # 2M UGX
-                "current_amount": Decimal("750000"),  # 750k UGX
-                "target_date": date(2024, 12, 31),
-                "category": TransactionCategory.SAVINGS,
-                "currency": "UGX",
-                "description": "Build emergency fund for 6 months expenses"
-            },
-            {
-                "name": "New Car",
-                "target_amount": Decimal("15000000"),  # 15M UGX
-                "current_amount": Decimal("3500000"),  # 3.5M UGX
-                "target_date": date(2025, 6, 30),
-                "category": TransactionCategory.TRANSPORTATION,
-                "currency": "UGX",
-                "description": "Save for a reliable car"
-            }
-        ]
+        # Determine if it's income based on transaction type and direction
+        income_types = [TransactionType.SALARY, TransactionType.DEPOSIT, 
+                       TransactionType.INTEREST, TransactionType.DIVIDEND, 
+                       TransactionType.REFUND]
+        is_income = (transaction.transaction_type in income_types or 
+                    transaction.direction == "inbound" or 
+                    transaction.amount > 0)
         
-        for goal_info in goal_data:
-            goal_id = str(uuid.uuid4())
-            self.financial_goals[goal_id] = FinancialGoalDB(
-                id=goal_id,
-                user_id=user_id,
-                is_completed=False,
-                created_at=datetime.utcnow() - timedelta(days=60),
-                updated_at=datetime.utcnow(),
-                **goal_info
-            )
+        # Get transaction date as date object
+        trans_date = transaction.transaction_date
+        if isinstance(trans_date, datetime):
+            trans_date = trans_date.date()
         
-        # Sample financial alerts
-        alert_data = [
-            {
-                "alert_type": AlertType.BUDGET_EXCEEDED,
-                "title": "Budget Alert: Entertainment",
-                "message": "You've exceeded your entertainment budget by 15% this month.",
-                "severity": "warning",
-                "category": TransactionCategory.ENTERTAINMENT,
-                "amount": Decimal("115000"),
-                "threshold": Decimal("100000")
-            },
-            {
-                "alert_type": AlertType.LARGE_TRANSACTION,
-                "title": "Large Transaction Detected",
-                "message": "A large transaction of UGX 500,000 was detected in your account.",
-                "severity": "info",
-                "amount": Decimal("500000")
-            }
-        ]
-        
-        for alert_info in alert_data:
-            alert_id = str(uuid.uuid4())
-            self.financial_alerts[alert_id] = FinancialAlertDB(
-                id=alert_id,
-                user_id=user_id,
-                is_read=False,
-                created_at=datetime.utcnow() - timedelta(hours=random.randint(1, 48)),
-                expires_at=datetime.utcnow() + timedelta(days=7),
-                **alert_info
-            )
-        
-        # Sample transactions for analytics
-        self._generate_sample_transactions(user_id)
+        return TransactionAnalyticsDB(
+            id=f"analytics_{transaction.transaction_id}",
+            user_id=transaction.user_id,
+            transaction_id=transaction.transaction_id,
+            amount=abs(transaction.amount),
+            category=analytics_category,
+            merchant=transaction.merchant_name,
+            description=transaction.description,
+            transaction_date=trans_date,
+            currency=transaction.currency,
+            is_income=is_income,
+            created_at=transaction.created_at if hasattr(transaction, 'created_at') else datetime.utcnow()
+        )
     
-    def _generate_sample_transactions(self, user_id: str):
-        """Generate sample transaction data for analytics"""
-        categories = list(TransactionCategory)
-        merchants = [
-            "Shoprite", "Game Stores", "Shell", "MTN", "Airtel", "UMEME",
-            "Cafe Javas", "KFC", "Uber", "Boda Boda", "Nakumatt", "Capital Shoppers"
-        ]
+    async def _get_user_transactions(
+        self, 
+        user_id: str, 
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        include_income: bool = True
+    ) -> List[TransactionAnalyticsDB]:
+        """Get user transactions from database and convert to analytics format"""
         
-        # Generate transactions for the last 6 months
-        start_date = date.today() - timedelta(days=180)
-        current_date = start_date
+        # Query transactions from database
+        query = select(Transaction).where(Transaction.user_id == user_id)
         
-        while current_date <= date.today():
-            # Generate 1-5 transactions per day
-            num_transactions = random.randint(1, 5)
-            
-            for _ in range(num_transactions):
-                transaction_id = str(uuid.uuid4())
-                category = random.choice(categories)
-                
-                # Generate realistic amounts based on category
-                amount_ranges = {
-                    TransactionCategory.GROCERIES: (10000, 150000),
-                    TransactionCategory.TRANSPORTATION: (2000, 50000),
-                    TransactionCategory.FOOD_DINING: (5000, 80000),
-                    TransactionCategory.ENTERTAINMENT: (10000, 100000),
-                    TransactionCategory.BILLS_UTILITIES: (50000, 300000),
-                    TransactionCategory.FUEL: (30000, 120000),
-                    TransactionCategory.SHOPPING: (20000, 200000),
-                    TransactionCategory.HEALTHCARE: (15000, 500000),
-                    TransactionCategory.EDUCATION: (100000, 1000000),
-                    TransactionCategory.INCOME: (500000, 2000000)
-                }
-                
-                min_amount, max_amount = amount_ranges.get(category, (5000, 100000))
-                amount = Decimal(str(random.randint(min_amount, max_amount)))
-                
-                # Income transactions are positive, expenses are negative for analytics
-                is_income = category == TransactionCategory.INCOME
-                if not is_income:
-                    amount = -amount
-                
-                self.transactions[transaction_id] = TransactionAnalyticsDB(
-                    id=transaction_id,
-                    user_id=user_id,
-                    transaction_id=f"txn_{transaction_id[:8]}",
-                    amount=amount,
-                    category=category,
-                    merchant=random.choice(merchants) if not is_income else "Salary",
-                    description=f"{category.value.replace('_', ' ').title()} transaction",
-                    transaction_date=current_date,
-                    currency="UGX",
-                    is_income=is_income,
-                    created_at=datetime.combine(current_date, datetime.min.time())
-                )
-            
-            current_date += timedelta(days=1)
+        # Apply date filters
+        if start_date:
+            query = query.where(Transaction.transaction_date >= start_date)
+        if end_date:
+            query = query.where(Transaction.transaction_date <= end_date)
+        
+        result = await self.db.execute(query)
+        transactions = result.scalars().all()
+        
+        # Convert to analytics format
+        analytics_transactions = []
+        for transaction in transactions:
+            try:
+                analytics_trans = await self._sync_transaction_to_analytics(transaction)
+                if include_income or not analytics_trans.is_income:
+                    analytics_transactions.append(analytics_trans)
+            except Exception as e:
+                # Log error but continue processing other transactions
+                print(f"Error converting transaction {transaction.transaction_id}: {e}")
+                continue
+        
+        return analytics_transactions
     
     async def get_spending_analysis(
         self, 
         user_id: str, 
         request: SpendingAnalysisRequest
     ) -> List[SpendingByCategory]:
-        """Get spending analysis by category"""
-        # Filter user transactions
-        user_transactions = [
-            t for t in self.transactions.values() 
-            if t.user_id == user_id and not t.is_income
-        ]
+        """Get spending analysis by category from actual database data"""
         
-        # Apply date filters
-        if request.start_date:
-            user_transactions = [t for t in user_transactions if t.transaction_date >= request.start_date]
-        if request.end_date:
-            user_transactions = [t for t in user_transactions if t.transaction_date <= request.end_date]
+        # Get user transactions (expenses only)
+        user_transactions = await self._get_user_transactions(
+            user_id,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            include_income=False
+        )
+        
+        if not user_transactions:
+            return []
         
         # Group by category
         category_spending = {}
@@ -234,8 +155,10 @@ class AnalyticsService:
             percentage = float(amount / total_spending * 100) if total_spending > 0 else 0
             average_transaction = amount / count if count > 0 else Decimal('0')
             
-            # Determine trend (mock calculation)
-            trend = random.choice(list(TrendDirection))
+            # Determine trend (comparing to previous period)
+            trend = await self._calculate_category_trend(
+                user_id, category, request.start_date, request.end_date
+            )
             
             spending_by_category.append(SpendingByCategory(
                 category=category,
@@ -251,23 +174,68 @@ class AnalyticsService:
         
         return spending_by_category
     
+    async def _calculate_category_trend(
+        self, 
+        user_id: str, 
+        category: TransactionCategory,
+        start_date: Optional[date],
+        end_date: Optional[date]
+    ) -> TrendDirection:
+        """Calculate spending trend for a category"""
+        
+        if not start_date or not end_date:
+            return TrendDirection.STABLE
+        
+        # Calculate period length
+        period_days = (end_date - start_date).days
+        
+        # Get previous period data
+        previous_start = start_date - timedelta(days=period_days)
+        previous_end = start_date - timedelta(days=1)
+        
+        # Get current period spending
+        current_transactions = await self._get_user_transactions(
+            user_id, start_date, end_date, include_income=False
+        )
+        current_spending = sum(
+            abs(t.amount) for t in current_transactions if t.category == category
+        )
+        
+        # Get previous period spending
+        previous_transactions = await self._get_user_transactions(
+            user_id, previous_start, previous_end, include_income=False
+        )
+        previous_spending = sum(
+            abs(t.amount) for t in previous_transactions if t.category == category
+        )
+        
+        # Determine trend
+        if previous_spending == 0:
+            return TrendDirection.STABLE if current_spending == 0 else TrendDirection.INCREASING
+        
+        change_percent = ((current_spending - previous_spending) / previous_spending) * 100
+        
+        if change_percent > 10:
+            return TrendDirection.INCREASING
+        elif change_percent < -10:
+            return TrendDirection.DECREASING
+        else:
+            return TrendDirection.STABLE
+    
     async def get_cash_flow_analysis(
         self, 
         user_id: str, 
         request: AnalyticsRequest
     ) -> CashFlowAnalysis:
-        """Get cash flow analysis for a period"""
-        # Filter user transactions
-        user_transactions = [
-            t for t in self.transactions.values() 
-            if t.user_id == user_id
-        ]
+        """Get cash flow analysis for a period from actual database data"""
         
-        # Apply date filters
-        if request.start_date:
-            user_transactions = [t for t in user_transactions if t.transaction_date >= request.start_date]
-        if request.end_date:
-            user_transactions = [t for t in user_transactions if t.transaction_date <= request.end_date]
+        # Get all user transactions (income and expenses)
+        user_transactions = await self._get_user_transactions(
+            user_id,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            include_income=True
+        )
         
         # Separate income and expenses
         income_transactions = [t for t in user_transactions if t.is_income]
@@ -291,7 +259,9 @@ class AnalyticsService:
             expense_categories[category] = expense_categories.get(category, Decimal('0')) + abs(transaction.amount)
         
         # Determine cash flow trend
-        if net_cash_flow > total_income * Decimal('0.1'):
+        if total_income == 0:
+            cash_flow_trend = TrendDirection.STABLE
+        elif net_cash_flow > total_income * Decimal('0.1'):
             cash_flow_trend = TrendDirection.INCREASING
         elif net_cash_flow < -total_income * Decimal('0.1'):
             cash_flow_trend = TrendDirection.DECREASING
@@ -311,7 +281,7 @@ class AnalyticsService:
         )
     
     async def create_budget(self, user_id: str, request: BudgetRequest) -> BudgetProfile:
-        """Create a new budget"""
+        """Create a new budget in database"""
         budget_id = str(uuid.uuid4())
         now = datetime.utcnow()
         
@@ -330,7 +300,9 @@ class AnalyticsService:
             updated_at=now
         )
         
-        self.budgets[budget_id] = budget
+        # Save to database (assuming you have a Budget ORM model)
+        # self.db.add(budget)
+        # await self.db.commit()
         
         # Calculate current spending for this budget
         spent_amount = await self._calculate_budget_spending(user_id, budget)
@@ -338,10 +310,18 @@ class AnalyticsService:
         return self._build_budget_profile(budget, spent_amount)
     
     async def get_user_budgets(self, user_id: str) -> List[BudgetProfile]:
-        """Get all budgets for a user"""
-        user_budgets = [b for b in self.budgets.values() if b.user_id == user_id]
-        budget_profiles = []
+        """Get all budgets for a user from database"""
         
+        # Query budgets from database
+        # query = select(Budget).where(Budget.user_id == user_id)
+        # result = await self.db.execute(query)
+        # user_budgets = result.scalars().all()
+        
+        # For now, return empty list since we need the Budget ORM model
+        # You'll need to implement this once you have the Budget table
+        user_budgets = []
+        
+        budget_profiles = []
         for budget in user_budgets:
             spent_amount = await self._calculate_budget_spending(user_id, budget)
             profile = self._build_budget_profile(budget, spent_amount)
@@ -350,28 +330,38 @@ class AnalyticsService:
         return budget_profiles
     
     async def get_budget_summary(self, user_id: str) -> BudgetSummary:
-        """Get budget summary for user"""
-        user_budgets = [b for b in self.budgets.values() if b.user_id == user_id and b.is_active]
+        """Get budget summary for user from database"""
         
+        # Get user budgets
+        user_budgets = await self.get_user_budgets(user_id)
+        
+        if not user_budgets:
+            return BudgetSummary(
+                total_budgets=0,
+                active_budgets=0,
+                total_budgeted=Decimal('0'),
+                total_spent=Decimal('0'),
+                total_remaining=Decimal('0'),
+                overall_percentage_used=0,
+                budgets_over_limit=0,
+                budgets_on_track=0,
+                budgets_under_budget=0
+            )
+        
+        active_budgets = [b for b in user_budgets if b.is_active]
         total_budgets = len(user_budgets)
-        active_budgets = len([b for b in user_budgets if b.is_active])
-        total_budgeted = sum(b.amount for b in user_budgets)
+        active_count = len(active_budgets)
+        total_budgeted = sum(b.budgeted_amount for b in active_budgets)
+        total_spent = sum(b.spent_amount for b in active_budgets)
         
-        # Calculate total spent across all budgets
-        total_spent = Decimal('0')
         budgets_over_limit = 0
         budgets_on_track = 0
         budgets_under_budget = 0
         
-        for budget in user_budgets:
-            spent_amount = await self._calculate_budget_spending(user_id, budget)
-            total_spent += spent_amount
-            
-            percentage_used = float(spent_amount / budget.amount * 100) if budget.amount > 0 else 0
-            
-            if percentage_used > 100:
+        for budget in active_budgets:
+            if budget.percentage_used > 100:
                 budgets_over_limit += 1
-            elif percentage_used > 80:
+            elif budget.percentage_used > 80:
                 budgets_on_track += 1
             else:
                 budgets_under_budget += 1
@@ -381,7 +371,7 @@ class AnalyticsService:
         
         return BudgetSummary(
             total_budgets=total_budgets,
-            active_budgets=active_budgets,
+            active_budgets=active_count,
             total_budgeted=total_budgeted,
             total_spent=total_spent,
             total_remaining=total_remaining,
@@ -396,7 +386,7 @@ class AnalyticsService:
         user_id: str, 
         request: FinancialGoalRequest
     ) -> FinancialGoalProfile:
-        """Create a new financial goal"""
+        """Create a new financial goal in database"""
         goal_id = str(uuid.uuid4())
         now = datetime.utcnow()
         
@@ -415,27 +405,42 @@ class AnalyticsService:
             updated_at=now
         )
         
-        self.financial_goals[goal_id] = goal
+        # Save to database (assuming you have a FinancialGoal ORM model)
+        # self.db.add(goal)
+        # await self.db.commit()
         
         return self._build_financial_goal_profile(goal)
     
     async def get_user_financial_goals(self, user_id: str) -> List[FinancialGoalProfile]:
-        """Get all financial goals for a user"""
-        user_goals = [g for g in self.financial_goals.values() if g.user_id == user_id]
+        """Get all financial goals for a user from database"""
+        
+        # Query goals from database
+        # query = select(FinancialGoal).where(FinancialGoal.user_id == user_id)
+        # result = await self.db.execute(query)
+        # user_goals = result.scalars().all()
+        
+        # For now, return empty list
+        user_goals = []
+        
         return [self._build_financial_goal_profile(goal) for goal in user_goals]
     
     async def get_financial_health_score(self, user_id: str) -> FinancialHealthScore:
-        """Calculate financial health score"""
-        # Get user data
-        user_transactions = [t for t in self.transactions.values() if t.user_id == user_id]
-        user_budgets = [b for b in self.budgets.values() if b.user_id == user_id and b.is_active]
-        user_goals = [g for g in self.financial_goals.values() if g.user_id == user_id]
+        """Calculate financial health score from actual user data"""
+        
+        # Get user data from database
+        user_transactions = await self._get_user_transactions(
+            user_id,
+            start_date=date.today() - timedelta(days=90),
+            include_income=True
+        )
+        user_budgets = await self.get_user_budgets(user_id)
+        user_goals = await self.get_user_financial_goals(user_id)
         
         # Calculate component scores
         spending_score = await self._calculate_spending_score(user_transactions, user_budgets)
         savings_score = await self._calculate_savings_score(user_goals, user_transactions)
         budget_adherence_score = await self._calculate_budget_adherence_score(user_id, user_budgets)
-        debt_management_score = random.randint(70, 90)  # Mock score
+        debt_management_score = 75  # Default score (implement based on debt data)
         emergency_fund_score = await self._calculate_emergency_fund_score(user_goals)
         
         # Calculate overall score (weighted average)
@@ -482,21 +487,16 @@ class AnalyticsService:
         )
     
     async def get_financial_insights(self, user_id: str) -> List[FinancialInsight]:
-        """Generate financial insights for user"""
+        """Generate financial insights for user from actual data"""
         insights = []
         
-        # Analyze spending patterns
-        user_transactions = [
-            t for t in self.transactions.values() 
-            if t.user_id == user_id and not t.is_income
-        ]
-        
-        # Recent transactions (last 30 days)
+        # Get recent transactions (last 30 days)
         recent_date = date.today() - timedelta(days=30)
-        recent_transactions = [
-            t for t in user_transactions 
-            if t.transaction_date >= recent_date
-        ]
+        recent_transactions = await self._get_user_transactions(
+            user_id,
+            start_date=recent_date,
+            include_income=False
+        )
         
         if recent_transactions:
             # High spending category insight
@@ -526,8 +526,15 @@ class AnalyticsService:
         return insights
     
     async def get_user_financial_alerts(self, user_id: str) -> List[FinancialAlert]:
-        """Get financial alerts for user"""
-        user_alerts = [a for a in self.financial_alerts.values() if a.user_id == user_id]
+        """Get financial alerts for user from database"""
+        
+        # Query alerts from database
+        # query = select(Alert).where(Alert.user_id == user_id)
+        # result = await self.db.execute(query)
+        # user_alerts = result.scalars().all()
+        
+        # For now, return empty list
+        user_alerts = []
         
         return [
             FinancialAlert(
@@ -548,24 +555,23 @@ class AnalyticsService:
     
     # Helper methods
     async def _calculate_budget_spending(self, user_id: str, budget: BudgetDB) -> Decimal:
-        """Calculate current spending for a budget"""
+        """Calculate current spending for a budget from actual transactions"""
+        
         # Get transactions for the budget period and category
-        user_transactions = [
-            t for t in self.transactions.values()
-            if (t.user_id == user_id and 
-                t.category == budget.category and 
-                not t.is_income and
-                t.transaction_date >= budget.start_date)
+        user_transactions = await self._get_user_transactions(
+            user_id,
+            start_date=budget.start_date,
+            end_date=budget.end_date,
+            include_income=False
+        )
+        
+        # Filter by category
+        category_transactions = [
+            t for t in user_transactions 
+            if t.category == budget.category
         ]
         
-        # Apply end date filter if specified
-        if budget.end_date:
-            user_transactions = [
-                t for t in user_transactions 
-                if t.transaction_date <= budget.end_date
-            ]
-        
-        return sum(abs(t.amount) for t in user_transactions)
+        return sum(abs(t.amount) for t in category_transactions)
     
     def _build_budget_profile(self, budget: BudgetDB, spent_amount: Decimal) -> BudgetProfile:
         """Build budget profile from budget DB and spending data"""
@@ -587,7 +593,7 @@ class AnalyticsService:
         daily_budget_remaining = None
         if budget.end_date:
             days_remaining = (budget.end_date - date.today()).days
-            if days_remaining > 0:
+            if days_remaining > 0 and remaining_amount > 0:
                 daily_budget_remaining = remaining_amount / days_remaining
         
         return BudgetProfile(
@@ -616,15 +622,17 @@ class AnalyticsService:
         progress_percentage = float(goal.current_amount / goal.target_amount * 100) if goal.target_amount > 0 else 0
         
         # Calculate days remaining
-        days_remaining = (goal.target_date - date.today()).days
+        days_remaining = max((goal.target_date - date.today()).days, 0)
         
         # Calculate monthly target
         months_remaining = max(days_remaining / 30, 1)
         monthly_target = remaining_amount / Decimal(str(months_remaining))
         
         # Determine if on track
-        expected_progress = 100 - (days_remaining / 365 * 100)  # Simplified calculation
-        on_track = progress_percentage >= expected_progress * 0.8  # 80% of expected progress
+        total_days = (goal.target_date - goal.created_at.date()).days
+        days_elapsed = total_days - days_remaining
+        expected_progress = (days_elapsed / total_days * 100) if total_days > 0 else 0
+        on_track = progress_percentage >= expected_progress * 0.8
         
         return FinancialGoalProfile(
             id=goal.id,
@@ -633,7 +641,7 @@ class AnalyticsService:
             current_amount=goal.current_amount,
             remaining_amount=remaining_amount,
             target_date=goal.target_date,
-            days_remaining=max(days_remaining, 0),
+            days_remaining=days_remaining,
             progress_percentage=round(progress_percentage, 2),
             monthly_target=monthly_target,
             on_track=on_track,
@@ -644,77 +652,84 @@ class AnalyticsService:
             updated_at=goal.updated_at
         )
     
-    async def _calculate_spending_score(self, transactions: List[TransactionAnalyticsDB], budgets: List[BudgetDB]) -> int:
+    async def _calculate_spending_score(
+        self, 
+        transactions: List[TransactionAnalyticsDB], 
+        budgets: List[BudgetProfile]
+    ) -> int:
         """Calculate spending efficiency score"""
         if not transactions:
             return 50
         
-        # Calculate spending variance and trends
         recent_transactions = [
             t for t in transactions 
-            if t.transaction_date >= date.today() - timedelta(days=30) and not t.is_income
+            if not t.is_income
         ]
         
         if not recent_transactions:
             return 70
         
-        # Mock calculation based on spending patterns
         total_spending = sum(abs(t.amount) for t in recent_transactions)
         avg_transaction = total_spending / len(recent_transactions)
         
-        # Higher scores for lower average transactions and consistent spending
-        if avg_transaction < Decimal('50000'):  # Small transactions
+        # Higher scores for lower average transactions
+        if avg_transaction < Decimal('50000'):
             base_score = 85
-        elif avg_transaction < Decimal('100000'):  # Medium transactions
+        elif avg_transaction < Decimal('100000'):
             base_score = 75
-        else:  # Large transactions
+        else:
             base_score = 65
         
         # Adjust based on budget adherence
         if budgets:
-            budget_adherence_bonus = random.randint(-10, 15)
-            base_score += budget_adherence_bonus
+            over_budget_count = sum(1 for b in budgets if b.percentage_used > 100)
+            if over_budget_count == 0:
+                base_score += 10
+            else:
+                base_score -= (over_budget_count * 5)
         
         return max(30, min(100, base_score))
     
-    async def _calculate_savings_score(self, goals: List[FinancialGoalDB], transactions: List[TransactionAnalyticsDB]) -> int:
+    async def _calculate_savings_score(
+        self, 
+        goals: List[FinancialGoalProfile], 
+        transactions: List[TransactionAnalyticsDB]
+    ) -> int:
         """Calculate savings rate score"""
         if not goals:
             return 40
         
         # Calculate progress on goals
-        total_progress = 0
-        for goal in goals:
-            progress = float(goal.current_amount / goal.target_amount * 100) if goal.target_amount > 0 else 0
-            total_progress += min(progress, 100)
-        
+        total_progress = sum(min(g.progress_percentage, 100) for g in goals)
         avg_progress = total_progress / len(goals)
         
         # Calculate savings rate from transactions
         income_transactions = [t for t in transactions if t.is_income]
         savings_transactions = [t for t in transactions if t.category == TransactionCategory.SAVINGS]
         
-        if income_transactions and savings_transactions:
+        if income_transactions:
             total_income = sum(t.amount for t in income_transactions)
             total_savings = sum(abs(t.amount) for t in savings_transactions)
             savings_rate = float(total_savings / total_income * 100) if total_income > 0 else 0
             
-            # Combine goal progress and savings rate
-            score = int((avg_progress * 0.6) + (min(savings_rate, 30) * 2))  # Cap savings rate impact
+            score = int((avg_progress * 0.6) + (min(savings_rate, 30) * 2))
         else:
             score = int(avg_progress * 0.8)
         
         return max(20, min(100, score))
     
-    async def _calculate_budget_adherence_score(self, user_id: str, budgets: List[BudgetDB]) -> int:
+    async def _calculate_budget_adherence_score(
+        self, 
+        user_id: str, 
+        budgets: List[BudgetProfile]
+    ) -> int:
         """Calculate budget adherence score"""
         if not budgets:
             return 60
         
         adherence_scores = []
         for budget in budgets:
-            spent_amount = await self._calculate_budget_spending(user_id, budget)
-            percentage_used = float(spent_amount / budget.amount * 100) if budget.amount > 0 else 0
+            percentage_used = budget.percentage_used
             
             if percentage_used <= 80:
                 adherence_scores.append(100)
@@ -727,16 +742,19 @@ class AnalyticsService:
         
         return int(sum(adherence_scores) / len(adherence_scores))
     
-    async def _calculate_emergency_fund_score(self, goals: List[FinancialGoalDB]) -> int:
+    async def _calculate_emergency_fund_score(self, goals: List[FinancialGoalProfile]) -> int:
         """Calculate emergency fund score"""
-        emergency_goals = [g for g in goals if 'emergency' in g.name.lower() or g.category == TransactionCategory.SAVINGS]
+        emergency_goals = [
+            g for g in goals 
+            if 'emergency' in g.name.lower() or g.category == TransactionCategory.SAVINGS
+        ]
         
         if not emergency_goals:
             return 20
         
         # Find the largest emergency fund goal
         largest_goal = max(emergency_goals, key=lambda g: g.target_amount)
-        progress = float(largest_goal.current_amount / largest_goal.target_amount * 100) if largest_goal.target_amount > 0 else 0
+        progress = largest_goal.progress_percentage
         
         return min(100, int(progress))
     

@@ -8,13 +8,13 @@ from decimal import Decimal
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 
-from app.database.models import (
+from ..database.models import (
     User, Account, Transaction, Card, Investment, P2PTransaction, Transfer,
     AccountTypeEnum, AccountStatusEnum, TransactionTypeEnum, 
     TransactionStatusEnum, TransactionDirectionEnum, MerchantCategoryEnum,
     PaymentMethodEnum, CardTypeEnum, CardStatusEnum
 )
-from app.database.config import check_database_connection, get_database_info
+from ..database.config import check_database_connection, get_database_info
 
 
 class TestDatabaseConnection:

@@ -7,17 +7,17 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 import asyncio
 
-from app.models.transfer import (
+from ...models.transfer import (
     TransferType, TransferStatus, TransferCreateRequest,
     TransferResponse, TransferListResponse
 )
-from app.services.database_transfer_service import DatabaseTransferService
-from app.database.config import get_db
-from app.core.exceptions import (
+from ...services.database_transfer_service import DatabaseTransferService
+from ...database.config import get_db
+from ...core.exceptions import (
     ValidationException, AccountNotFoundException, BusinessRuleViolationException
 )
-from app.utils.response import success_response
-from app.config.logging import get_logger
+from ...utils.response import success_response
+from ...config.logging import get_logger
 
 logger = get_logger(__name__)
 

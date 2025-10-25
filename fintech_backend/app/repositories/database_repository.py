@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, asc
 from datetime import datetime, date
 
-from app.database.models import (
+from ..database.models import (
     User, Account, Transaction, Card, Investment, P2PTransaction, Transfer,
     AccountTypeEnum, AccountStatusEnum, TransactionTypeEnum, TransactionStatusEnum,
     CardTypeEnum, CardStatusEnum

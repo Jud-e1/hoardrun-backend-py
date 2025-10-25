@@ -9,18 +9,18 @@ from typing import Optional, List
 import asyncio
 from datetime import datetime
 
-from app.models.auth import (
+from ...models.auth import (
     UserProfile, UserProfileUpdateRequest, UserSettingsUpdateRequest,
     UserSettings, UserResponse
 )
-from app.services.user_service import UserService
-from app.database.config import get_db
-from app.core.exceptions import (
+from ...services.user_service import UserService
+from ...database.config import get_db
+from ...core.exceptions import (
     ValidationException, AuthenticationException, AuthorizationException,
     UserNotFoundException
 )
-from app.utils.response import success_response
-from app.config.logging import get_logger
+from ...utils.response import success_response
+from ...config.logging import get_logger
 
 logger = get_logger(__name__)
 security = HTTPBearer()
@@ -31,6 +31,37 @@ router = APIRouter(prefix="/users", tags=["User Management"])
 def get_user_service():
     """Dependency to get user service instance"""
     return UserService()
+
+
+@router.get("/", response_model=dict)
+async def get_users(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+    user_service: UserService = Depends(get_user_service)
+):
+    """
+    Get all users (Admin endpoint).
+
+    Returns a list of all users in the system.
+    """
+    try:
+        logger.info("API: Getting all users")
+
+        token = credentials.credentials
+        # TODO: Add admin role verification here
+        users = await user_service.get_all_users(db)
+
+        return success_response(
+            data={"users": users},
+            message="Users retrieved successfully"
+        )
+
+    except AuthenticationException as e:
+        logger.error(f"Authentication failed: {e}")
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting users: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/profile", response_model=UserResponse)

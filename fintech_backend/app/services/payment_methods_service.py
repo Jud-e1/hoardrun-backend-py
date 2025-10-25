@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
 import re
 
-from app.models.payment_methods import (
+from ..models.payment_methods import (
     PaymentMethodCreateRequest,
     PaymentMethodUpdateRequest,
     PaymentMethodProfile,
@@ -20,8 +20,8 @@ from app.models.payment_methods import (
     PaymentMethodStatus,
     PaymentMethodDB
 )
-from app.core.exceptions import ValidationError, NotFoundError, ConflictError
-from app.repositories.mock_repository import MockRepository
+from ..core.exceptions import ValidationError, NotFoundError, ConflictError
+from ..repositories.mock_repository import MockRepository
 
 class PaymentMethodsService:
     def __init__(self):

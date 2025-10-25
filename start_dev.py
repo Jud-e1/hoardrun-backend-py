@@ -25,8 +25,8 @@ def main():
     try:
         # Test import first
         print("📦 Testing imports...")
-        from app.config.settings import get_settings
-        from app.database.config import check_database_connection, create_tables
+        from ..config.settings import get_settings
+        from ..database.config import check_database_connection, create_tables
 
         settings = get_settings()
         print(f"✅ Settings loaded successfully")

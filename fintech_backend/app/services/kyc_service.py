@@ -11,7 +11,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from app.models.kyc import (
+from ..models.kyc import (
     KYCDocumentUploadRequest,
     KYCUpdateRequest,
     FaceVerificationRequest,
@@ -28,8 +28,8 @@ from app.models.kyc import (
     AddressInformation,
     EmploymentInformation
 )
-from app.core.exceptions import ValidationError, NotFoundError, ConflictError
-from app.repositories.mock_repository import MockRepository
+from ..core.exceptions import ValidationError, NotFoundError, ConflictError
+from ..repositories.mock_repository import MockRepository
 
 class KYCService:
     def __init__(self):

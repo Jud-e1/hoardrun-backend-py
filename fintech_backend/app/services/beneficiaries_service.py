@@ -7,17 +7,17 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 
-from app.models.beneficiaries import (
+from ..models.beneficiaries import (
     BeneficiaryCreateRequest, BeneficiaryUpdateRequest, BeneficiaryProfile,
     BeneficiarySearchRequest, BeneficiaryType, BeneficiaryStatus,
     BeneficiaryCreate, BeneficiaryUpdate, BeneficiaryStats
 )
-from app.services.auth_service import AuthService
-from app.core.exceptions import (
+from ..services.auth_service import AuthService
+from ..core.exceptions import (
     ValidationException, AuthenticationException, NotFoundError
 )
-from app.config.settings import get_settings
-from app.config.logging import get_logger
+from ..config.settings import get_settings
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 settings = get_settings()

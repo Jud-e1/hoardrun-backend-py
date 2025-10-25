@@ -533,3 +533,19 @@ def sanitize_input(input_str: str, max_length: int = 255, allow_html: bool = Fal
     sanitized = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', sanitized)
     
     return sanitized
+async def validate_user_exists(user_id: str, repo) -> bool:
+    """Validate that a user exists in the repository."""
+    try:
+        user = await repo.get_user_by_id(user_id)
+        return user is not None
+    except Exception:
+        return False
+
+
+async def validate_account_exists(account_id: str, repo) -> bool:
+    """Validate that an account exists in the repository."""
+    try:
+        account = await repo.get_account_by_id(account_id)
+        return account is not None
+    except Exception:
+        return False

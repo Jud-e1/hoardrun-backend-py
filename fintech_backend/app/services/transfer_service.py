@@ -9,23 +9,23 @@ from decimal import Decimal
 from typing import List, Optional, Dict, Any
 import asyncio
 
-from app.models.transfer import (
+from ..models.transfer import (
     Beneficiary, BeneficiaryCreateRequest, BeneficiaryUpdateRequest,
     BeneficiaryStatus, TransferType, TransferStatus, TransferPriority,
     TransferQuoteRequest, TransferInitiateRequest, TransferCancelRequest,
     TransferQuote, MoneyTransfer, ExchangeRate, TransferFeesResponse,
     TransferLimitsResponse, ExchangeRateResponse, CountryCorridor
 )
-from app.core.exceptions import (
+from ..core.exceptions import (
     ValidationError, NotFoundError, BusinessLogicError, UnauthorizedError
 )
-from app.data.repository import get_repository_manager
-from app.utils.validation import validate_user_exists, validate_account_exists
-from app.utils.calculations import calculate_fee
-from app.config.logging import get_logger
-from app.external.bank_api import get_bank_api_client
-from app.external.mobile_money import MockMobileMoneyClient, MobileMoneyProvider
-from app.external.payment_gateway import get_payment_gateway
+from ..data.repository import get_repository_manager
+from ..utils.validators import validate_user_exists, validate_account_exists
+from ..utils.calculations import calculate_fee
+from ..config.logging import get_logger
+from ..external.bank_api import get_bank_api_client
+from ..external.mobile_money import MockMobileMoneyClient, MobileMoneyProvider
+from ..external.payment_gateway import get_payment_gateway
 
 logger = get_logger(__name__)
 

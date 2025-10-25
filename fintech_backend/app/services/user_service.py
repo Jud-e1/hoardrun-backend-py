@@ -10,16 +10,16 @@ from sqlalchemy.orm import Session
 from fastapi import UploadFile
 from passlib.context import CryptContext
 
-from app.models.auth import (
+from ..models.auth import (
     UserProfile, UserProfileUpdateRequest, UserSettingsUpdateRequest,
     UserSettings, UserStatus, UserRole
 )
-from app.services.auth_service import AuthService
-from app.core.exceptions import (
+from ..services.auth_service import AuthService
+from ..core.exceptions import (
     ValidationException, AuthenticationException, UserNotFoundException
 )
-from app.config.settings import get_settings
-from app.config.logging import get_logger
+from ..config.settings import get_settings
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -262,6 +262,57 @@ class UserService:
         truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
         return pwd_context.verify(truncated_password, hashed_password)
     
+    async def get_all_users(self, db: Session) -> list:
+        """
+        Get all users in the system (Admin endpoint).
+
+        Args:
+            db: Database session
+
+        Returns:
+            List: List of all users
+        """
+        try:
+            logger.info("Getting all users")
+
+            # Import User model here to avoid circular imports
+            from ..database.models import User
+
+            # Query all users from the database
+            users = db.query(User).all()
+
+            # Convert to dictionary format for API response
+            user_list = []
+            for user in users:
+                user_dict = {
+                    "id": user.id,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "phone_number": user.phone_number,
+                    "is_active": user.is_active,
+                    "is_verified": user.is_verified,
+                    "email_verified": user.email_verified,
+                    "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+                    "date_of_birth": user.date_of_birth,
+                    "country": user.country,
+                    "id_number": user.id_number,
+                    "bio": user.bio,
+                    "profile_picture_url": user.profile_picture_url,
+                    "status": user.status,
+                    "role": user.role,
+                    "created_at": user.created_at.isoformat() if user.created_at else None,
+                    "updated_at": user.updated_at.isoformat() if user.updated_at else None
+                }
+                user_list.append(user_dict)
+
+            logger.info(f"Retrieved {len(user_list)} users from database")
+            return user_list
+
+        except Exception as e:
+            logger.error(f"Error getting all users: {e}")
+            raise ValidationException(f"Failed to retrieve users: {str(e)}")
+
     # Mock database operations (replace with actual database calls)
     async def _update_user_avatar(self, user_id: str, avatar_url: str, db: Session) -> None:
         """Update user avatar URL (mock implementation)."""
