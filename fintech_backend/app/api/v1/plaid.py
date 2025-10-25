@@ -181,6 +181,33 @@ async def get_connection_accounts(
         )
 
 
+@router.get("/accounts", response_model=List[PlaidAccount])
+async def get_user_accounts(
+    user_id: str = Depends(get_current_user_id),
+    service: PlaidService = Depends(get_plaid_service)
+) -> List[PlaidAccount]:
+    """
+    Get all Plaid accounts for the authenticated user across all connections.
+
+    Args:
+        user_id: Authenticated user ID
+        service: Plaid service instance
+
+    Returns:
+        List of all user's accounts
+    """
+    try:
+        logger.info(f"Getting all accounts for user {user_id}")
+        accounts = await service.get_user_accounts(user_id)
+        return accounts
+    except Exception as e:
+        logger.error(f"Failed to get accounts for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get accounts: {str(e)}"
+        )
+
+
 @router.get("/connections/{connection_id}/transactions", response_model=List[PlaidTransaction])
 async def get_connection_transactions(
     connection_id: str,

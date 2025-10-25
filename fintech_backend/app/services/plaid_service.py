@@ -239,6 +239,39 @@ class PlaidService:
         logger.info(f"Found {len(accounts)} accounts for connection {connection_id}")
         return accounts
 
+    async def get_user_accounts(self, user_id: str) -> List[PlaidAccount]:
+        """
+        Get all Plaid accounts for a user across all connections.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            List of all accounts for the user
+        """
+        logger.info(f"Getting all accounts for user {user_id}")
+
+        # Validate user exists
+        if not await validate_user_exists(user_id, self.repo):
+            raise NotFoundError(f"User {user_id} not found")
+
+        # Get all active connections for the user
+        connections = await self.repo.get_user_plaid_connections(user_id)
+        active_connections = [conn for conn in connections if conn.status == PlaidConnectionStatus.ACTIVE]
+
+        if not active_connections:
+            logger.info(f"No active connections found for user {user_id}")
+            return []
+
+        # Aggregate accounts from all active connections
+        all_accounts = []
+        for connection in active_connections:
+            accounts = await self.repo.get_plaid_accounts(connection.connection_id)
+            all_accounts.extend(accounts)
+
+        logger.info(f"Found {len(all_accounts)} total accounts for user {user_id} across {len(active_connections)} connections")
+        return all_accounts
+
     async def get_connection_transactions(
         self,
         user_id: str,
