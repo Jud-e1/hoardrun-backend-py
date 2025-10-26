@@ -569,3 +569,13 @@ def get_plaid_transactions_repository() -> TransactionMockRepository:
 def get_plaid_link_tokens_repository() -> UserMockRepository:
     """Get Plaid link tokens repository."""
     return repository_manager.plaid_link_tokens
+
+
+# Plaid Transfer specific methods
+async def create_transfer_quote(quote_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a transfer quote."""
+    return await repository_manager.transfers.create(quote_data)
+
+async def get_transfer_quote(quote_id: str) -> Optional[Dict[str, Any]]:
+    """Get a transfer quote by ID."""
+    return await repository_manager.transfers.get_by_id(quote_id)
