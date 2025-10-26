@@ -36,3 +36,8 @@ requests
 plaid-python
 
 jose
+
+# Testing dependencies
+pytest
+pytest-asyncio
+anyio

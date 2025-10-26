@@ -26,6 +26,7 @@ from ..config.logging import get_logger
 from ..external.bank_api import get_bank_api_client
 from ..external.mobile_money import MockMobileMoneyClient, MobileMoneyProvider
 from ..external.payment_gateway import get_payment_gateway
+from .plaid_transfer_service import get_plaid_transfer_service, PlaidTransferService
 
 logger = get_logger(__name__)
 
@@ -38,6 +39,7 @@ class MoneyTransferService:
         self.bank_api = get_bank_api_client()
         self.payment_gateway = get_payment_gateway()
         self.mobile_money = MockMobileMoneyClient()
+        self.plaid_transfer_service = get_plaid_transfer_service()
 
     # Beneficiaries
     async def list_beneficiaries(self, user_id: str) -> Dict[str, Any]:
@@ -114,6 +116,10 @@ class MoneyTransferService:
         if account.user_id != user_id:
             raise UnauthorizedError("You don't have access to this account")
 
+        # Check if this is a Plaid transfer
+        if req.transfer_type == TransferType.PLAID_TRANSFER:
+            return await self.plaid_transfer_service.get_transfer_quote(user_id, req)
+
         # Get bank rates (mock) and compose ExchangeRate
         rate_value = await self._get_mock_rate(req.source_currency, req.destination_currency)
         exchange_fee = (req.source_amount * Decimal("0.005")).quantize(Decimal("0.01"))  # 0.5%
@@ -176,6 +182,10 @@ class MoneyTransferService:
         if quote.expires_at < datetime.utcnow():
             raise BusinessLogicError("Quote has expired")
 
+        # Check if this is a Plaid transfer
+        if hasattr(quote, "transfer_type") and quote.transfer_type == TransferType.PLAID_TRANSFER:
+            return await self.plaid_transfer_service.initiate_transfer(user_id, quote_id, req)
+
         # Validate user & account
         if not await validate_user_exists(user_id, self.repo):
             raise NotFoundError(f"User {user_id} not found")
@@ -234,6 +244,11 @@ class MoneyTransferService:
         transfer = await self._get_user_transfer(user_id, transfer_id)
         if transfer.status in [TransferStatus.COMPLETED, TransferStatus.FAILED, TransferStatus.CANCELLED]:
             raise BusinessLogicError("Transfer can no longer be cancelled")
+
+        # Check if this is a Plaid transfer
+        if transfer.transfer_type == TransferType.PLAID_TRANSFER:
+            return await self.plaid_transfer_service.cancel_transfer(user_id, transfer_id, req)
+
         transfer.status = TransferStatus.CANCELLED
         transfer.status_history.append({"status": "cancelled", "reason": req.reason, "at": datetime.utcnow().isoformat()})
         transfer.updated_at = datetime.utcnow()
@@ -242,6 +257,11 @@ class MoneyTransferService:
 
     async def track_transfer(self, user_id: str, transfer_id: str) -> Dict[str, Any]:
         transfer = await self._get_user_transfer(user_id, transfer_id)
+
+        # Check if this is a Plaid transfer
+        if transfer.transfer_type == TransferType.PLAID_TRANSFER:
+            return await self.plaid_transfer_service.track_transfer(user_id, transfer_id)
+
         return {
             "transfer": transfer,
             "tracking_events": transfer.status_history,
@@ -347,6 +367,7 @@ class MoneyTransferService:
             TransferType.INSTANT_TRANSFER: (Decimal("1.50"), Decimal("0.003")),
             TransferType.REMITTANCE: (Decimal("5.00"), Decimal("0.004")),
             TransferType.CRYPTO: (Decimal("2.50"), Decimal("0.003")),
+            TransferType.PLAID_TRANSFER: (Decimal("0.00"), Decimal("0.000")),  # No fees for Plaid transfers
         }[transfer_type]
         base, variable = schedule
         fee = base + (amount * variable)

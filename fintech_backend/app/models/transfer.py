@@ -19,6 +19,7 @@ class TransferType(str, Enum):
     CRYPTO = "crypto"
     REMITTANCE = "remittance"
     INSTANT_TRANSFER = "instant_transfer"
+    PLAID_TRANSFER = "plaid_transfer"
 
 
 class TransferStatus(str, Enum):

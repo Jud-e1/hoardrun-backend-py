@@ -13,6 +13,8 @@ from ..models.plaid import (
     PlaidAccount, PlaidTransaction, PlaidConnection,
     PlaidConnectionStatus, PlaidSyncRequest, PlaidSyncResponse
 )
+from ..models.account import Account, AccountType, AccountStatus, CurrencyCode, AccountBalance, AccountCreateRequest
+from ..services.account_service import get_account_service
 from ..core.exceptions import (
     ValidationError, NotFoundError, BusinessLogicError,
     ExternalServiceException
@@ -31,6 +33,7 @@ class PlaidService:
     def __init__(self):
         self.repo = get_repository_manager()
         self.plaid_client = get_plaid_client()
+        self.account_service = get_account_service()
 
     async def create_link_token(self, user_id: str, request: PlaidLinkTokenRequest) -> PlaidLinkTokenResponse:
         """
@@ -412,6 +415,10 @@ class PlaidService:
                 )
 
                 await self.repo.upsert_plaid_account(account)
+
+                # Create internal account for Plaid account if it doesn't exist
+                await self._create_internal_account_for_plaid_account(connection.user_id, account_data)
+
                 accounts_synced += 1
 
             # Get transactions from Plaid (last 30 days)
@@ -467,6 +474,83 @@ class PlaidService:
             "accounts_synced": accounts_synced,
             "transactions_synced": transactions_synced
         }
+
+    async def _create_internal_account_for_plaid_account(self, user_id: str, plaid_account_data: Dict[str, Any]) -> None:
+        """
+        Create an internal account linked to a Plaid account if it doesn't already exist.
+
+        Args:
+            user_id: User identifier
+            plaid_account_data: Plaid account data from API
+        """
+        plaid_account_id = plaid_account_data["account_id"]
+
+        # Check if internal account already exists for this Plaid account
+        accounts_data = await self.account_service.list_user_accounts(user_id)
+        existing_accounts = accounts_data["accounts"]
+        existing_plaid_account = next(
+            (acc for acc in existing_accounts if acc.plaid_account_id == plaid_account_id),
+            None
+        )
+
+        if existing_plaid_account:
+            logger.info(f"Internal account already exists for Plaid account {plaid_account_id}")
+            return
+
+        # Map Plaid account type to internal account type
+        plaid_type = plaid_account_data.get("type", "").lower()
+        plaid_subtype = plaid_account_data.get("subtype", "").lower()
+
+        if plaid_type == "depository":
+            if plaid_subtype in ["checking", "savings"]:
+                account_type = AccountType(plaid_subtype)
+            else:
+                account_type = AccountType.CHECKING  # Default to checking
+        elif plaid_type == "credit":
+            account_type = AccountType.CREDIT
+        elif plaid_type == "investment":
+            account_type = AccountType.INVESTMENT
+        else:
+            account_type = AccountType.CHECKING  # Default fallback
+
+        # Extract balance information
+        balances = plaid_account_data.get("balances", {})
+        current_balance_raw = balances.get("current")
+        current_balance = Decimal(str(current_balance_raw)) if current_balance_raw is not None else Decimal("0")
+
+        available_balance_raw = balances.get("available", current_balance_raw)
+        available_balance = Decimal(str(available_balance_raw)) if available_balance_raw is not None else current_balance
+
+        # Create account balance object
+        account_balance = AccountBalance(
+            currency=CurrencyCode.USD,  # Default to USD, could be enhanced to detect currency
+            available_balance=available_balance,
+            current_balance=current_balance,
+            pending_balance=Decimal("0"),
+            overdraft_limit=None,
+            reserved_balance=Decimal("0")
+        )
+
+        # Create account creation request
+        account_request = AccountCreateRequest(
+            account_type=account_type,
+            account_name=plaid_account_data.get("name", f"Plaid {account_type.value.title()} Account"),
+            currency=CurrencyCode.USD,
+            initial_deposit=None,  # Don't set initial deposit for Plaid accounts
+            is_overdraft_enabled=False,
+            minimum_balance=Decimal("0"),
+            plaid_account_id=plaid_account_id
+        )
+
+        try:
+            # Create the internal account
+            created_account = await self.account_service.create_account(user_id, account_request)
+
+            logger.info(f"Created internal account {created_account.account_id} linked to Plaid account {plaid_account_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to create internal account for Plaid account {plaid_account_id}: {e}")
+            # Don't raise exception to avoid breaking the sync process
 
 
 # Dependency provider

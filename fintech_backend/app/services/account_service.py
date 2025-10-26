@@ -19,9 +19,9 @@ from ..core.exceptions import (
     ValidationError, NotFoundError, BusinessLogicError,
     InsufficientFundsError, UnauthorizedError
 )
-from ...data.repository import get_repository_manager
-from ..utils.validators import validate_user_exists, validate_currency_amount
-from ..utils.calculations import calculate_fee, calculate_interest
+from ..data.repository import get_repository_manager
+from ..utils.validators import validate_user_exists
+from ..utils.calculations import calculate_fee
 from ..external.bank_api import get_bank_api_client
 from ..config.logging import get_logger
 
