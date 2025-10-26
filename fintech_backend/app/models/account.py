@@ -4,7 +4,7 @@ Account management models for the fintech backend.
 
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict
-from datetime import datetime, date
+from datetime import datetime, date as Date
 from decimal import Decimal
 from enum import Enum
 
@@ -78,31 +78,35 @@ class Account(BaseModel):
     id: Optional[str] = Field(None, description="Unique identifier")
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
-    
+
     account_id: str = Field(..., description="Unique account identifier")
     user_id: str = Field(..., description="Owner user ID")
     account_type: AccountType = Field(..., description="Type of account")
     account_name: str = Field(..., description="Human-readable account name")
     account_number: str = Field(..., description="Masked account number")
     status: AccountStatus = Field(default=AccountStatus.ACTIVE, description="Account status")
-    
+
     # Balance information
     balance: AccountBalance = Field(..., description="Account balance details")
-    
+
     # Account settings
     is_primary: bool = Field(default=False, description="Whether this is the primary account")
     is_overdraft_enabled: bool = Field(default=False, description="Overdraft protection enabled")
     minimum_balance: Decimal = Field(default=Decimal("0"), description="Minimum required balance")
-    
+
     # Interest and fees
     interest_rate: Optional[Decimal] = Field(None, description="Annual interest rate (for savings)")
     monthly_fee: Decimal = Field(default=Decimal("0"), description="Monthly maintenance fee")
-    
+
     # Metadata
-    opening_date: date = Field(..., description="Account opening date")
-    last_statement_date: Optional[date] = Field(None, description="Last statement generation date")
+    opening_date: Date = Field(..., description="Account opening date")
+    last_statement_date: Optional[Date] = Field(None, description="Last statement generation date")
     routing_number: Optional[str] = Field(None, description="Bank routing number")
     swift_code: Optional[str] = Field(None, description="SWIFT/BIC code for international transfers")
+
+    # Plaid integration fields
+    plaid_account_id: Optional[str] = Field(None, description="Linked Plaid account ID")
+    is_plaid_linked: bool = Field(default=False, description="Whether account is linked to Plaid")
 
 
 class AccountStatement(BaseModel):
@@ -113,8 +117,8 @@ class AccountStatement(BaseModel):
     
     statement_id: str = Field(..., description="Unique statement identifier")
     account_id: str = Field(..., description="Account identifier")
-    statement_period_start: date = Field(..., description="Statement period start date")
-    statement_period_end: date = Field(..., description="Statement period end date")
+    statement_period_start: Date = Field(..., description="Statement period start date")
+    statement_period_end: Date = Field(..., description="Statement period end date")
     opening_balance: Decimal = Field(..., description="Balance at period start")
     closing_balance: Decimal = Field(..., description="Balance at period end")
     total_credits: Decimal = Field(default=Decimal("0"), description="Total credit amount")
@@ -126,9 +130,9 @@ class AccountStatement(BaseModel):
 class StatementTransaction(BaseModel):
     """Transaction entry in account statement."""
     transaction_id: str = Field(..., description="Transaction identifier")
-    date: date = Field(..., description="Transaction date")
+    date: Date = Field(..., description="Transaction date")
     description: str = Field(..., description="Transaction description")
-    category: str = Field(..., description="Transaction category")
+    category: TransactionCategory = Field(..., description="Transaction category")
     amount: Decimal = Field(..., description="Transaction amount (positive for credits, negative for debits)")
     balance_after: Decimal = Field(..., description="Account balance after transaction")
     reference_number: Optional[str] = Field(None, description="External reference number")
@@ -143,6 +147,7 @@ class AccountCreateRequest(BaseModel):
     initial_deposit: Optional[Decimal] = Field(None, ge=0, description="Initial deposit amount")
     is_overdraft_enabled: bool = Field(default=False, description="Enable overdraft protection")
     minimum_balance: Decimal = Field(default=Decimal("0"), ge=0, description="Minimum balance requirement")
+    plaid_account_id: Optional[str] = Field(None, description="Plaid account ID to link (for Plaid integration)")
 
 
 class AccountUpdateRequest(BaseModel):
@@ -165,8 +170,8 @@ class AccountTransferRequest(BaseModel):
 
 class StatementRequest(BaseModel):
     """Request model for generating account statements."""
-    start_date: date = Field(..., description="Statement period start date")
-    end_date: date = Field(..., description="Statement period end date")
+    start_date: Date = Field(..., description="Statement period start date")
+    end_date: Date = Field(..., description="Statement period end date")
     format: str = Field(default="json", description="Statement format (json, pdf)")
     
     @validator('end_date')
@@ -228,7 +233,7 @@ class AccountStatementResponse(BaseModel):
 
 class BalanceHistoryPoint(BaseModel):
     """Single point in balance history."""
-    date: date = Field(..., description="Date of balance point")
+    date: Date = Field(..., description="Date of balance point")
     balance: Decimal = Field(..., description="Account balance")
     change: Decimal = Field(default=Decimal("0"), description="Change from previous point")
 
@@ -238,8 +243,8 @@ class BalanceHistoryResponse(BaseModel):
     success: bool = Field(default=True, description="Operation success status")
     message: str = Field(default="Success", description="Response message")
     account_id: str = Field(..., description="Account identifier")
-    period_start: date = Field(..., description="History period start")
-    period_end: date = Field(..., description="History period end")
+    period_start: Date = Field(..., description="History period start")
+    period_end: Date = Field(..., description="History period end")
     history: List[BalanceHistoryPoint] = Field(..., description="Balance history points")
     trend: str = Field(..., description="Overall trend (increasing, decreasing, stable)")
     average_balance: Decimal = Field(..., description="Average balance over period")

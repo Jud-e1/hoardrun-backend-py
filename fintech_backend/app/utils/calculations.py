@@ -541,3 +541,45 @@ class LimitCalculator:
             "data_points_daily": len(daily_spending),
             "data_points_monthly": len(monthly_spending)
         }
+
+
+def calculate_fee(
+    amount: Decimal,
+    fee_percentage: Optional[Decimal] = None,
+    fixed_fee: Optional[Decimal] = None,
+    min_fee: Optional[Decimal] = None,
+    max_fee: Optional[Decimal] = None
+) -> Decimal:
+    """
+    Calculate transaction fee based on amount and fee structure.
+    
+    Args:
+        amount: Transaction amount
+        fee_percentage: Percentage fee (e.g., 2.5 for 2.5%)
+        fixed_fee: Fixed fee amount
+        min_fee: Minimum fee to charge
+        max_fee: Maximum fee to charge
+        
+    Returns:
+        Calculated fee amount
+    """
+    fee = Decimal("0")
+    
+    # Calculate percentage fee
+    if fee_percentage:
+        fee += (amount * fee_percentage / Decimal("100"))
+    
+    # Add fixed fee
+    if fixed_fee:
+        fee += fixed_fee
+    
+    # Apply minimum fee
+    if min_fee and fee < min_fee:
+        fee = min_fee
+    
+    # Apply maximum fee
+    if max_fee and fee > max_fee:
+        fee = max_fee
+    
+    # Round to 2 decimal places
+    return round(fee, 2)
