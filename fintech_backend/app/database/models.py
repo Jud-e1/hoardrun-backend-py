@@ -586,30 +586,257 @@ class P2PTransaction(Base, TimestampMixin):
     recipient = relationship("User", foreign_keys=[recipient_id])
 
 
+class TransferQuote(Base, TimestampMixin):
+    """Transfer quote model for storing transfer cost estimates."""
+    __tablename__ = "transfer_quotes"
+
+    quote_id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Quote details
+    from_amount = Column(DECIMAL(precision=15, scale=2), nullable=False)
+    from_currency = Column(String(3), nullable=False)
+    to_amount = Column(DECIMAL(precision=15, scale=2), nullable=False)
+    to_currency = Column(String(3), nullable=False)
+
+    # Exchange rate (stored as JSON for complex rate structures)
+    exchange_rate = Column(JSON)
+
+    # Fee breakdown
+    transfer_fee = Column(DECIMAL(precision=15, scale=2), default=0.00, nullable=False)
+    exchange_fee = Column(DECIMAL(precision=15, scale=2), default=0.00, nullable=False)
+    total_fees = Column(DECIMAL(precision=15, scale=2), nullable=False)
+
+    # Total cost
+    total_cost = Column(DECIMAL(precision=15, scale=2), nullable=False)
+
+    # Quote validity
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    transfer_type = Column(String, nullable=False)
+
+    # Relationships
+    user = relationship("User")
+
+    # Table constraints
+    __table_args__ = (
+        CheckConstraint(
+            "from_amount > 0",
+            name='check_quote_from_amount_positive'
+        ),
+        CheckConstraint(
+            "to_amount > 0",
+            name='check_quote_to_amount_positive'
+        ),
+        CheckConstraint(
+            "transfer_fee >= 0",
+            name='check_quote_transfer_fee_non_negative'
+        ),
+        CheckConstraint(
+            "exchange_fee >= 0",
+            name='check_quote_exchange_fee_non_negative'
+        ),
+        CheckConstraint(
+            "total_fees >= 0",
+            name='check_quote_total_fees_non_negative'
+        ),
+        CheckConstraint(
+            "total_cost > 0",
+            name='check_quote_total_cost_positive'
+        ),
+        CheckConstraint(
+            "length(from_currency) = 3",
+            name='check_quote_from_currency_length'
+        ),
+        CheckConstraint(
+            "length(to_currency) = 3",
+            name='check_quote_to_currency_length'
+        ),
+        CheckConstraint(
+            "expires_at > created_at",
+            name='check_quote_expires_after_created'
+        ),
+        Index('idx_transfer_quotes_user_expires', 'user_id', 'expires_at'),
+        Index('idx_transfer_quotes_expires', 'expires_at'),
+    )
+
+    @validates('from_currency', 'to_currency')
+    def validate_currency(self, key, currency):
+        """Validate currency code format."""
+        if currency and not re.match(r'^[A-Z]{3}$', currency):
+            raise ValueError(f"{key} must be a 3-letter ISO code")
+        return currency.upper() if currency else currency
+
+
+class MoneyTransfer(Base, TimestampMixin):
+    """Money transfer model for external transfers."""
+    __tablename__ = "money_transfers"
+
+    transfer_id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Source information
+    source_account_id = Column(String, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Destination information
+    beneficiary_id = Column(String, nullable=False, index=True)  # Foreign key to beneficiaries table
+
+    # Transfer details
+    transfer_type = Column(String, nullable=False, index=True)
+    status = Column(String, nullable=False, index=True)
+    priority = Column(String, default="standard", nullable=False)
+
+    # Amount and currency
+    source_amount = Column(DECIMAL(precision=15, scale=2), nullable=False)
+    source_currency = Column(String(3), nullable=False)
+    destination_amount = Column(DECIMAL(precision=15, scale=2), nullable=False)
+    destination_currency = Column(String(3), nullable=False)
+
+    # Exchange rate applied
+    exchange_rate_used = Column(DECIMAL(precision=10, scale=6))
+
+    # Fee information
+    transfer_fee = Column(DECIMAL(precision=15, scale=2), default=0.00, nullable=False)
+    exchange_fee = Column(DECIMAL(precision=15, scale=2), default=0.00, nullable=False)
+    total_fees = Column(DECIMAL(precision=15, scale=2), nullable=False)
+
+    # Cost breakdown
+    total_cost = Column(DECIMAL(precision=15, scale=2), nullable=False)
+
+    # Transfer details
+    purpose = Column(String)
+    reference = Column(String)
+    recipient_message = Column(Text)
+
+    # Processing information
+    quote_id = Column(String, ForeignKey("transfer_quotes.quote_id", ondelete="SET NULL"))
+    external_reference = Column(String, index=True)
+
+    # Tracking information
+    initiated_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    processed_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+    estimated_arrival = Column(DateTime(timezone=True))
+
+    # Status history (stored as JSON)
+    status_history = Column(JSON, default=list)
+
+    # Compliance and verification
+    compliance_check_passed = Column(Boolean, default=False)
+    requires_documents = Column(Boolean, default=False)
+
+    # Relationships
+    user = relationship("User")
+    source_account = relationship("Account")
+    quote = relationship("TransferQuote")
+
+    # Table constraints
+    __table_args__ = (
+        CheckConstraint(
+            "source_amount > 0",
+            name='check_transfer_source_amount_positive'
+        ),
+        CheckConstraint(
+            "destination_amount > 0",
+            name='check_transfer_destination_amount_positive'
+        ),
+        CheckConstraint(
+            "transfer_fee >= 0",
+            name='check_transfer_fee_non_negative'
+        ),
+        CheckConstraint(
+            "exchange_fee >= 0",
+            name='check_transfer_exchange_fee_non_negative'
+        ),
+        CheckConstraint(
+            "total_fees >= 0",
+            name='check_transfer_total_fees_non_negative'
+        ),
+        CheckConstraint(
+            "total_cost > 0",
+            name='check_transfer_total_cost_positive'
+        ),
+        CheckConstraint(
+            "length(source_currency) = 3",
+            name='check_transfer_source_currency_length'
+        ),
+        CheckConstraint(
+            "length(destination_currency) = 3",
+            name='check_transfer_destination_currency_length'
+        ),
+        CheckConstraint(
+            "exchange_rate_used > 0",
+            name='check_transfer_exchange_rate_positive'
+        ),
+        CheckConstraint(
+            "initiated_at <= processed_at OR processed_at IS NULL",
+            name='check_transfer_processed_after_initiated'
+        ),
+        CheckConstraint(
+            "processed_at <= completed_at OR completed_at IS NULL",
+            name='check_transfer_completed_after_processed'
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'processing', 'in_transit', 'completed', 'failed', 'cancelled', 'returned', 'on_hold')",
+            name='check_transfer_status'
+        ),
+        CheckConstraint(
+            "priority IN ('standard', 'express', 'urgent')",
+            name='check_transfer_priority'
+        ),
+        Index('idx_money_transfers_user_status', 'user_id', 'status'),
+        Index('idx_money_transfers_status_date', 'status', 'initiated_at'),
+        Index('idx_money_transfers_type_date', 'transfer_type', 'initiated_at'),
+        Index('idx_money_transfers_external_ref', 'external_reference'),
+    )
+
+    @validates('source_currency', 'destination_currency')
+    def validate_currency(self, key, currency):
+        """Validate currency code format."""
+        if currency and not re.match(r'^[A-Z]{3}$', currency):
+            raise ValueError(f"{key} must be a 3-letter ISO code")
+        return currency.upper() if currency else currency
+
+    @validates('status')
+    def validate_status(self, key, status):
+        """Validate transfer status."""
+        valid_statuses = ['pending', 'processing', 'in_transit', 'completed', 'failed', 'cancelled', 'returned', 'on_hold']
+        if status not in valid_statuses:
+            raise ValueError(f"Invalid status: {status}. Must be one of {valid_statuses}")
+        return status
+
+    @validates('priority')
+    def validate_priority(self, key, priority):
+        """Validate transfer priority."""
+        valid_priorities = ['standard', 'express', 'urgent']
+        if priority not in valid_priorities:
+            raise ValueError(f"Invalid priority: {priority}. Must be one of {valid_priorities}")
+        return priority
+
+
 class Transfer(Base, TimestampMixin):
     """Transfer model for account-to-account transfers."""
     __tablename__ = "transfers"
-    
+
     id = Column(String, primary_key=True, default=generate_uuid)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     from_account_id = Column(String, ForeignKey("accounts.id"), nullable=False)
     to_account_id = Column(String, ForeignKey("accounts.id"), nullable=False)
-    
+
     # Transfer details
     amount = Column(DECIMAL(precision=15, scale=2), nullable=False)
     currency = Column(String(3), default="USD", nullable=False)
     description = Column(String)
     reference_number = Column(String)
     status = Column(String, nullable=False)  # pending, processing, completed, failed
-    
+
     # Fees
     fee_amount = Column(DECIMAL(precision=15, scale=2), default=0.00)
-    
+
     # Timing
     requested_date = Column(DateTime(timezone=True), default=func.now())
     processed_date = Column(DateTime(timezone=True))
     completed_date = Column(DateTime(timezone=True))
-    
+
     # Relationships
     user = relationship("User")
     from_account = relationship("Account", foreign_keys=[from_account_id])

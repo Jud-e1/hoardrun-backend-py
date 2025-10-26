@@ -40,6 +40,7 @@ from .api.v1.mastercard import router as mastercard_router
 from .api.v1.collective_capital import router as collective_capital_router
 from .api.v1.paystack import router as paystack_router
 from .api.v1.plaid import router as plaid_router
+from .api.v1.plaid_transfers import router as plaid_transfers_router
 from .api.v1.settings import router as settings_router
 from .api.websocket import router as websocket_router
 from .api.admin.auth import router as admin_auth_router
@@ -48,6 +49,7 @@ from .api.admin.system import router as admin_system_router
 from .api.admin.financial import router as admin_financial_router
 from .api.admin.security import router as admin_security_router
 from .api.admin.analytics import router as admin_analytics_router
+from .api.public import router as public_router
 
 # Get application settings
 settings = get_settings()
@@ -142,6 +144,7 @@ app.include_router(mastercard_router, prefix="/api/v1")
 app.include_router(collective_capital_router, prefix="/api/v1")
 app.include_router(paystack_router, prefix="/api/v1")
 app.include_router(plaid_router, prefix="/api/v1")
+app.include_router(plaid_transfers_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(websocket_router)
 app.include_router(admin_auth_router, prefix="/api/v1/admin")
@@ -150,6 +153,7 @@ app.include_router(admin_system_router, prefix="/api/v1/admin")
 app.include_router(admin_financial_router, prefix="/api/v1/admin")
 app.include_router(admin_security_router, prefix="/api/v1/admin")
 app.include_router(admin_analytics_router, prefix="/api/v1/admin")
+app.include_router(public_router, prefix="/api/public")
 
 
 @app.get("/health", tags=["Health"])

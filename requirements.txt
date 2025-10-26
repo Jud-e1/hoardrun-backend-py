@@ -32,4 +32,7 @@ pyopenssl
 # Payment processing
 requests
 
+# Plaid integration
+plaid-python
+
 jose

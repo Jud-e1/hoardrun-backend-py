@@ -3,7 +3,7 @@ Admin-specific user service methods for comprehensive user administration.
 """
 
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -549,9 +549,9 @@ class UserServiceAdmin:
             ).group_by(User.country).order_by(func.count(User.id).desc()).limit(10).all()
             countries = {country: count for country, count in country_counts}
 
-            # Get registration trends (last 30 days)
-            thirty_days_ago = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-            thirty_days_ago = thirty_days_ago.replace(day=thirty_days_ago.day - 30)
+            # Get registration trends (last 30 days) - FIXED
+            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+            thirty_days_ago = thirty_days_ago.replace(hour=0, minute=0, second=0, microsecond=0)
 
             recent_registrations = db.query(func.count(User.id)).filter(
                 User.created_at >= thirty_days_ago
