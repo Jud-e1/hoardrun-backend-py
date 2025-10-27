@@ -29,14 +29,7 @@ async def create_link_token(
 ) -> PlaidLinkTokenResponse:
     """
     Create a Plaid Link token for connecting bank accounts.
-
-    Args:
-        request: Link token creation request
-        user_id: Authenticated user ID
-        service: Plaid service instance
-
-    Returns:
-        Link token response
+    This creates an actual Plaid link session.
     """
     try:
         logger.info(f"Creating link token for user {user_id}")
@@ -58,14 +51,7 @@ async def exchange_public_token(
 ) -> PlaidExchangeTokenResponse:
     """
     Exchange a public token for an access token and create connection.
-
-    Args:
-        request: Token exchange request
-        user_id: Authenticated user ID
-        service: Plaid service instance
-
-    Returns:
-        Token exchange response
+    This establishes the actual connection with Plaid.
     """
     try:
         logger.info(f"Exchanging public token for user {user_id}")
@@ -88,15 +74,7 @@ async def sync_connection(
 ) -> PlaidSyncResponse:
     """
     Sync data for a Plaid connection.
-
-    Args:
-        connection_id: Connection identifier
-        request: Sync request
-        user_id: Authenticated user ID
-        service: Plaid service instance
-
-    Returns:
-        Sync response
+    Fetches latest account balances and transactions from Plaid.
     """
     try:
         logger.info(f"Syncing connection {connection_id} for user {user_id}")
@@ -116,14 +94,7 @@ async def get_user_connections(
     service: PlaidService = Depends(get_plaid_service)
 ) -> List[PlaidConnection]:
     """
-    Get all Plaid connections for the authenticated user.
-
-    Args:
-        user_id: Authenticated user ID
-        service: Plaid service instance
-
-    Returns:
-        List of user's connections
+    Get all active Plaid connections for the authenticated user.
     """
     try:
         logger.info(f"Getting connections for user {user_id}")
@@ -137,35 +108,6 @@ async def get_user_connections(
         )
 
 
-@router.get("/connections/{connection_id}/accounts", response_model=List[PlaidAccount])
-async def get_connection_accounts(
-    connection_id: str,
-    user_id: str = Depends(get_current_user_id),
-    service: PlaidService = Depends(get_plaid_service)
-) -> List[PlaidAccount]:
-    """
-    Get accounts for a specific connection.
-
-    Args:
-        connection_id: Connection identifier
-        user_id: Authenticated user ID
-        service: Plaid service instance
-
-    Returns:
-        List of accounts
-    """
-    try:
-        logger.info(f"Getting accounts for connection {connection_id}")
-        accounts = await service.get_connection_accounts(user_id, connection_id)
-        return accounts
-    except Exception as e:
-        logger.error(f"Failed to get accounts for connection {connection_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get accounts: {str(e)}"
-        )
-
-
 @router.get("/accounts", response_model=List[PlaidAccount])
 async def get_user_accounts(
     current_user: dict = Depends(get_current_user),
@@ -173,13 +115,7 @@ async def get_user_accounts(
 ) -> List[PlaidAccount]:
     """
     Get all Plaid accounts for the authenticated user across all connections.
-
-    Args:
-        user_id: Authenticated user ID
-        service: Plaid service instance
-
-    Returns:
-        List of all user's accounts
+    Returns actual account data from Plaid with real-time balances.
     """
     try:
         user_id = current_user["user_id"]
@@ -188,6 +124,27 @@ async def get_user_accounts(
         return accounts
     except Exception as e:
         logger.error(f"Failed to get accounts for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get accounts: {str(e)}"
+        )
+
+
+@router.get("/connections/{connection_id}/accounts", response_model=List[PlaidAccount])
+async def get_connection_accounts(
+    connection_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: PlaidService = Depends(get_plaid_service)
+) -> List[PlaidAccount]:
+    """
+    Get accounts for a specific connection with real-time balances.
+    """
+    try:
+        logger.info(f"Getting accounts for connection {connection_id}")
+        accounts = await service.get_connection_accounts(user_id, connection_id)
+        return accounts
+    except Exception as e:
+        logger.error(f"Failed to get accounts for connection {connection_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get accounts: {str(e)}"
@@ -204,18 +161,7 @@ async def get_connection_transactions(
     service: PlaidService = Depends(get_plaid_service)
 ) -> List[PlaidTransaction]:
     """
-    Get transactions for a specific connection.
-
-    Args:
-        connection_id: Connection identifier
-        start_date: Optional start date filter (YYYY-MM-DD)
-        end_date: Optional end date filter (YYYY-MM-DD)
-        account_ids: Optional comma-separated account IDs
-        user_id: Authenticated user ID
-        service: Plaid service instance
-
-    Returns:
-        List of transactions
+    Get transactions for a specific connection from Plaid.
     """
     try:
         from datetime import date
@@ -256,15 +202,7 @@ async def disconnect_connection(
     service: PlaidService = Depends(get_plaid_service)
 ):
     """
-    Disconnect a Plaid connection.
-
-    Args:
-        connection_id: Connection identifier
-        user_id: Authenticated user ID
-        service: Plaid service instance
-
-    Returns:
-        Disconnect confirmation
+    Disconnect a Plaid connection and remove access.
     """
     try:
         logger.info(f"Disconnecting connection {connection_id} for user {user_id}")
@@ -278,18 +216,57 @@ async def disconnect_connection(
         )
 
 
+@router.post("/webhook")
+async def handle_plaid_webhook(
+    request: dict,
+    service: PlaidService = Depends(get_plaid_service)
+):
+    """
+    Handle Plaid webhook events for real-time updates.
+    """
+    try:
+        logger.info(f"Received Plaid webhook: {request.get('webhook_type')}")
+
+        webhook_type = request.get('webhook_type')
+        webhook_code = request.get('webhook_code')
+
+        if webhook_type == 'TRANSACTIONS':
+            if webhook_code == 'SYNC_UPDATES_AVAILABLE':
+                item_id = request.get('item_id')
+                logger.info(f"Transactions update for item {item_id}")
+                # Trigger automatic sync
+                await service.sync_item_by_id(item_id)
+
+        elif webhook_type == 'ITEM':
+            if webhook_code == 'LOGIN_REQUIRED':
+                item_id = request.get('item_id')
+                logger.warning(f"Item {item_id} requires re-authentication")
+                await service.mark_item_needs_update(item_id)
+            elif webhook_code == 'ERROR':
+                item_id = request.get('item_id')
+                error_code = request.get('error', {}).get('error_code')
+                logger.error(f"Item {item_id} error: {error_code}")
+                await service.mark_item_error(item_id, error_code)
+
+        return {
+            "status": "success",
+            "message": "Webhook received and processed"
+        }
+
+    except Exception as e:
+        logger.error(f"Webhook processing failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
 @router.get("/test-connection")
 async def test_plaid_connection(
     service: PlaidService = Depends(get_plaid_service)
 ):
     """
     Test Plaid API connection.
-
-    Args:
-        service: Plaid service instance
-
-    Returns:
-        Connection test results
     """
     try:
         logger.info("Testing Plaid API connection")
@@ -301,3 +278,5 @@ async def test_plaid_connection(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Connection test failed: {str(e)}"
         )
+    
+    
