@@ -7,8 +7,8 @@ from fastapi.security import HTTPBearer
 from typing import Optional, List
 from datetime import date, datetime
 
-from ..services.investment_service import InvestmentService
-from ..models.investment import (
+from ...services.investment_service import InvestmentService
+from ...models.investment import (
     PortfolioCreateRequest, PortfolioUpdateRequest, OrderCreateRequest,
     WatchlistCreateRequest, WatchlistUpdateRequest, PortfolioAnalysisRequest,
     RebalanceRequest, PortfolioResponse, PortfolioListResponse,
@@ -18,8 +18,8 @@ from ..models.investment import (
     InvestmentSummaryResponse, RebalanceAnalysisResponse, InvestmentResearchResponse,
     AssetType, OrderStatus, OrderType, OrderSide
 )
-from ..models.base import PaginationRequest, BaseResponse
-from ..core.auth import get_current_user
+from ...models.base import PaginationRequest, BaseResponse
+from ...core.auth import get_current_user
 
 router = APIRouter(prefix="/investments", tags=["Investments"])
 security = HTTPBearer()

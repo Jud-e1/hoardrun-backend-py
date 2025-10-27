@@ -8,9 +8,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer
 
-from ..core.auth import get_current_user
-from ..models.auth import User
-from ..models.audit import (
+from ...core.auth import get_current_user
+from ...models.auth import User
+from ...models.audit import (
     AuditLogRequest,
     AuditLogEntry,
     ComplianceCheckRequest,
@@ -21,9 +21,9 @@ from ..models.audit import (
     AuditEventType,
     ComplianceType
 )
-from ..services.audit_service import AuditService
-from ..core.exceptions import ValidationError, NotFoundError
-from ..models.base import PaginatedResponse, SuccessResponse
+from ...services.audit_service import AuditService
+from ...core.exceptions import ValidationError, NotFoundError
+from ...models.base import PaginatedResponse, SuccessResponse
 
 router = APIRouter(prefix="/audit", tags=["Audit & Compliance"])
 security = HTTPBearer()

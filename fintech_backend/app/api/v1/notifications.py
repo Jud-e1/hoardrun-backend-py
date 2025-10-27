@@ -2,16 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from ..core.auth import get_current_user
-from ..models.notifications import (
+from ...core.auth import get_current_user
+from ...models.notifications import (
     NotificationCreateRequest, NotificationUpdateRequest, BulkNotificationUpdateRequest,
     NotificationPreferencesRequest, NotificationFilters,
     NotificationProfile, NotificationSummary, NotificationPreferencesProfile,
     NotificationStats, NotificationType, NotificationPriority, NotificationStatus,
     NotificationChannel
 )
-from ..services.notifications_service import NotificationsService
-from ..core.exceptions import NotFoundError, ValidationError, BusinessLogicError
+from ...services.notifications_service import NotificationsService
+from ...core.exceptions import NotFoundError, ValidationError, BusinessLogicError
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 notifications_service = NotificationsService()

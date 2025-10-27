@@ -7,8 +7,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import HTTPBearer
 
-from ..core.auth import get_current_user
-from ..models.payment_methods import (
+from ...core.auth import get_current_user
+from ...models.payment_methods import (
     PaymentMethodCreateRequest,
     PaymentMethodUpdateRequest,
     PaymentMethodProfile,
@@ -19,9 +19,9 @@ from ..models.payment_methods import (
     PaymentMethodListResponse,
     PaymentMethodResponse
 )
-from ..models.base import BaseResponse, PaginatedResponse
-from ..services.payment_methods_service import PaymentMethodsService
-from ..core.exceptions import ValidationError, NotFoundError, ConflictError
+from ...models.base import BaseResponse, PaginatedResponse
+from ...services.payment_methods_service import PaymentMethodsService
+from ...core.exceptions import ValidationError, NotFoundError, ConflictError
 
 router = APIRouter(prefix="/payment-methods", tags=["Payment Methods"])
 security = HTTPBearer()
