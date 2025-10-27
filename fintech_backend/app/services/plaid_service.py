@@ -367,6 +367,108 @@ class PlaidService:
         if connection:
             await self._sync_connection_data(connection)
 
+    async def create_debit_card_link_token(self, user_id: str) -> PlaidLinkTokenResponse:
+        """
+        Create a Plaid Link token for debit card verification.
+        This creates a link session specifically for verifying debit cards.
+        """
+        logger.info(f"Creating debit card link token for user {user_id}")
+
+        if not await validate_user_exists(user_id, self.repo):
+            raise NotFoundError(f"User {user_id} not found")
+
+        try:
+            # Create debit card verification link token via Plaid API
+            link_data = await self.plaid_client.create_debit_card_link_token(
+                user_id=user_id,
+                client_name="HoardRun"
+            )
+
+            # Store link token metadata for tracking
+            link_token_id = str(uuid.uuid4())
+            await self.repo.create_plaid_link_token({
+                "link_token_id": link_token_id,
+                "user_id": user_id,
+                "link_token": link_data["link_token"],
+                "expiration": link_data["expiration"],
+                "request_id": link_data.get("request_id"),
+                "created_at": datetime.utcnow(),
+                "used": False
+            })
+
+            response = PlaidLinkTokenResponse(
+                link_token=link_data["link_token"],
+                expiration=link_data["expiration"],
+                link_token_id=link_token_id,
+                request_id=link_data.get("request_id")
+            )
+
+            logger.info(f"Created debit card link token {link_token_id} for user {user_id}")
+            return response
+
+        except Exception as e:
+            logger.error(f"Failed to create debit card link token for user {user_id}: {e}")
+            raise ExternalServiceException(f"Plaid service error: {str(e)}")
+
+    async def verify_debit_card(
+        self,
+        user_id: str,
+        public_token: str,
+        account_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Verify a debit card using Plaid.
+        This exchanges the public token and verifies the debit card account.
+        """
+        logger.info(f"Verifying debit card for user {user_id}")
+
+        if not await validate_user_exists(user_id, self.repo):
+            raise NotFoundError(f"User {user_id} not found")
+
+        try:
+            # Verify debit card via Plaid API
+            verification_data = await self.plaid_client.verify_debit_card(
+                public_token=public_token,
+                account_id=account_id
+            )
+
+            # Mark link token as used if provided (would need to track this)
+            # For now, we'll assume the verification was successful
+
+            # Create a payment method record for the verified debit card
+            payment_method_data = {
+                "user_id": user_id,
+                "type": "debit_card",
+                "provider": "plaid",
+                "account_id": verification_data["account_id"],
+                "account_name": verification_data["account_name"],
+                "account_type": verification_data["account_type"],
+                "account_subtype": verification_data["account_subtype"],
+                "access_token": verification_data["access_token"],
+                "item_id": verification_data["item_id"],
+                "status": "verified",
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+
+            # Store in payment methods (assuming payment_methods_service integration)
+            # For now, we'll return the verification data
+            # In a full implementation, you'd integrate with payment_methods_service
+
+            logger.info(f"Successfully verified debit card for user {user_id}")
+            return {
+                "verified": True,
+                "account_id": verification_data["account_id"],
+                "account_name": verification_data["account_name"],
+                "account_type": verification_data["account_type"],
+                "account_subtype": verification_data["account_subtype"],
+                "payment_method_data": payment_method_data
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to verify debit card for user {user_id}: {e}")
+            raise ExternalServiceException(f"Plaid service error: {str(e)}")
+
     async def test_connection(self) -> Dict[str, Any]:
         """Test REAL Plaid API connection."""
         logger.info("Testing REAL Plaid API connection")

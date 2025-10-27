@@ -261,6 +261,54 @@ async def handle_plaid_webhook(
         }
 
 
+@router.post("/debit-card/link-token", response_model=PlaidLinkTokenResponse)
+async def create_debit_card_link_token(
+    user_id: str = Depends(get_current_user_id),
+    service: PlaidService = Depends(get_plaid_service)
+) -> PlaidLinkTokenResponse:
+    """
+    Create a Plaid Link token for debit card verification.
+    This creates a link session specifically for verifying debit cards.
+    """
+    try:
+        logger.info(f"Creating debit card link token for user {user_id}")
+        response = await service.create_debit_card_link_token(user_id)
+        return response
+    except Exception as e:
+        logger.error(f"Failed to create debit card link token for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create debit card link token: {str(e)}"
+        )
+
+
+@router.post("/debit-card/verify")
+async def verify_plaid_debit_card(
+    public_token: str,
+    account_id: str = None,
+    user_id: str = Depends(get_current_user_id),
+    service: PlaidService = Depends(get_plaid_service)
+):
+    """
+    Verify a debit card after Plaid Link flow completion.
+    This exchanges the public token and verifies the debit card.
+    """
+    try:
+        logger.info(f"Verifying debit card for user {user_id}")
+        result = await service.verify_debit_card(
+            user_id=user_id,
+            public_token=public_token,
+            account_id=account_id
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Failed to verify debit card for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to verify debit card: {str(e)}"
+        )
+
+
 @router.get("/test-connection")
 async def test_plaid_connection(
     service: PlaidService = Depends(get_plaid_service)
