@@ -5,7 +5,7 @@
 # This module is part of SQLAlchemy and is released under
 # the MIT License: https://www.opensource.org/licenses/mit-license.php
 
-from ... import exc
+from .. import exc
 
 
 class AsyncMethodRequired(exc.InvalidRequestError):

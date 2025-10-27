@@ -9,19 +9,19 @@ from typing import Optional, List
 import asyncio
 from datetime import datetime
 
-from ...models.beneficiaries import (
+from ..models.beneficiaries import (
     BeneficiaryCreateRequest, BeneficiaryUpdateRequest, BeneficiaryProfile,
     BeneficiaryListResponse, BeneficiaryResponse, RecentBeneficiariesResponse,
     BeneficiarySearchRequest, BeneficiaryType, BeneficiaryStatus, BeneficiaryStats
 )
-from ...services.beneficiaries_service import BeneficiariesService
-from ...database.config import get_db
-from ...core.exceptions import (
+from ..services.beneficiaries_service import BeneficiariesService
+from ..database.config import get_db
+from ..core.exceptions import (
     ValidationException, AuthenticationException, AuthorizationException,
     UserNotFoundException, NotFoundError
 )
-from ...utils.response import success_response
-from ...config.logging import get_logger
+from ..utils.response import success_response
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 security = HTTPBearer()

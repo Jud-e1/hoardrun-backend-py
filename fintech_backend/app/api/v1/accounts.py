@@ -5,19 +5,19 @@ Account management API endpoints - Plaid-based implementation.
 from fastapi import APIRouter, HTTPException, Depends, Query, Path
 from typing import Optional
 
-from ...models.account import (
+from ..models.account import (
     StatementRequest, BalanceHistoryRequest,
     AccountListResponse, AccountResponse,
     AccountBalanceResponse, AccountStatementResponse, BalanceHistoryResponse,
     AccountOverviewResponse
 )
-from ...services.account_service import get_account_service
-from ...core.exceptions import (
+from ..services.account_service import get_account_service
+from ..core.exceptions import (
     ValidationError, NotFoundError, BusinessLogicError,
     UnauthorizedError
 )
-from ...utils.response import success_response
-from ...config.logging import get_logger
+from ..utils.response import success_response
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 

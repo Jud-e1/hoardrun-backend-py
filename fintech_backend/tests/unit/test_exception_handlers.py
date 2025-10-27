@@ -8,12 +8,12 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from decimal import Decimal
 
-from ...core.exceptions import (
+from ..core.exceptions import (
     FintechException,
     InsufficientFundsException,
     ValidationException
 )
-from ...core.exception_handlers import (
+from ..core.exception_handlers import (
     fintech_exception_handler,
     validation_exception_handler,
     http_exception_handler,

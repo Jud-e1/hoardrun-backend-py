@@ -7,9 +7,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
 
-from ...auth.dependencies import get_current_user
-from ...models.auth import User
-from ...models.paystack import (
+from ..auth.dependencies import get_current_user
+from ..models.auth import User
+from ..models.paystack import (
     InitializePaymentRequest,
     VerifyPaymentRequest,
     ListTransactionsRequest,
@@ -20,9 +20,9 @@ from ...models.paystack import (
     Currency,
     TransactionStatus
 )
-from ...services.paystack_service import get_paystack_service
-from ...core.exceptions import ExternalServiceException, ValidationException
-from ...config.logging import get_logger
+from ..services.paystack_service import get_paystack_service
+from ..core.exceptions import ExternalServiceException, ValidationException
+from ..config.logging import get_logger
 
 logger = get_logger("paystack_api")
 
@@ -187,7 +187,7 @@ async def get_paystack_config(
     to integrate with Paystack.
     """
     try:
-        from ...config.settings import get_settings
+        from ..config.settings import get_settings
         settings = get_settings()
         
         return {
@@ -217,7 +217,7 @@ async def paystack_health_check():
     Checks if the Paystack service is properly configured and accessible.
     """
     try:
-        from ...config.settings import get_settings
+        from ..config.settings import get_settings
         settings = get_settings()
         
         # Basic configuration check

@@ -10,18 +10,18 @@ import asyncio
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
 
-from ...models.auth import (
+from ..models.auth import (
     UserProfile, UserProfileUpdateRequest, UserResponse
 )
-from ...services.user_service import UserService
-from ...database.config import get_db
-from ...core.exceptions import (
+from ..services.user_service import UserService
+from ..database.config import get_db
+from ..core.exceptions import (
     ValidationException, AuthenticationException, AuthorizationException,
     UserNotFoundException
 )
-from ...utils.response import success_response
-from ...config.logging import get_logger
-from ...core.auth import get_current_user
+from ..utils.response import success_response
+from ..config.logging import get_logger
+from ..core.auth import get_current_user
 
 logger = get_logger(__name__)
 security = HTTPBearer()
