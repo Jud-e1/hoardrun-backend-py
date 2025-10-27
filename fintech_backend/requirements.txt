@@ -35,3 +35,5 @@ plaid-python
 
 # Email service
 resend
+
+jinja2
