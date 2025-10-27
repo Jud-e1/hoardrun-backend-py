@@ -431,4 +431,3 @@ class MoneyTransferService:
 
 def get_money_transfer_service() -> MoneyTransferService:
     return MoneyTransferService()
-

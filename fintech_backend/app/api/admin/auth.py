@@ -9,19 +9,19 @@ from typing import Optional
 import asyncio
 from datetime import datetime, timedelta
 
-from ..models.auth import (
+from ...models.auth import (
     UserLoginRequest, LoginResponse, UserResponse, TokenResponse,
     UserRole
 )
-from ..services.auth_service import AuthService
-from ..database.config import get_db
-from ..core.exceptions import (
+from ...services.auth_service import AuthService
+from ...database.config import get_db
+from ...core.exceptions import (
     ValidationException, AuthenticationException, AuthorizationException,
     UserNotFoundException
 )
-from ..utils.response import success_response
-from ..config.logging import get_logger
-from ..config.settings import get_settings
+from ...utils.response import success_response
+from ...config.logging import get_logger
+from ...config.settings import get_settings
 
 logger = get_logger(__name__)
 security = HTTPBearer()
@@ -65,7 +65,7 @@ async def authenticate_admin_user(
         expires_at = datetime.utcnow() + access_token_expires
 
         # Create user profile
-        from ..models.auth import UserProfile, UserStatus
+        from ...models.auth import UserProfile, UserStatus
         user_profile = UserProfile(
             id=user["id"],
             email=user["email"],

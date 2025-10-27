@@ -371,3 +371,7 @@ def get_payment_gateway_client() -> MockPaymentGatewayClient:
         )
     
     return _payment_gateway_client
+
+
+# Alias for backward compatibility
+get_payment_gateway = get_payment_gateway_client
