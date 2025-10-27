@@ -3,17 +3,17 @@ from typing import List, Optional, Dict, Any
 from datetime import date, datetime
 from sqlalchemy.orm import Session
 
-from ...core.auth import get_current_user
-from ...models.analytics import (
+from ..core.auth import get_current_user
+from ..models.analytics import (
     AnalyticsRequest, BudgetRequest, SpendingAnalysisRequest, FinancialGoalRequest,
     SpendingByCategory, BudgetProfile, BudgetSummary, FinancialInsight,
     CashFlowAnalysis, FinancialHealthScore, FinancialGoalProfile, FinancialAlert,
     AnalyticsPeriod, TransactionCategory
 )
-from ...services.analytics_service import AnalyticsService
-from ...core.exceptions import NotFoundError, ValidationError, BusinessLogicError
-from ...config.logging import get_logger
-from ...database.config import get_db
+from ..services.analytics_service import AnalyticsService
+from ..core.exceptions import NotFoundError, ValidationError, BusinessLogicError
+from ..config.logging import get_logger
+from ..database.config import get_db
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 

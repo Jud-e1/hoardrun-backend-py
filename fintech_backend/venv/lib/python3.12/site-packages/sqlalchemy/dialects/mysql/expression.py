@@ -9,15 +9,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from ... import exc
-from ... import util
-from ...sql import coercions
-from ...sql import elements
-from ...sql import operators
-from ...sql import roles
-from ...sql.base import _generative
-from ...sql.base import Generative
-from ...util.typing import Self
+from .. import exc
+from .. import util
+from ..sql import coercions
+from ..sql import elements
+from ..sql import operators
+from ..sql import roles
+from ..sql.base import _generative
+from ..sql.base import Generative
+from ..util.typing import Self
 
 
 class match(Generative, elements.BinaryExpression[Any]):

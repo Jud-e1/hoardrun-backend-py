@@ -5,17 +5,17 @@ Money transfer API endpoints - Plaid-based implementation.
 from fastapi import APIRouter, HTTPException, Query, Path
 from typing import Optional
 
-from ...models.transfer import (
+from ..models.transfer import (
     BeneficiaryCreateRequest, BeneficiaryUpdateRequest,
     TransferQuoteRequest, TransferInitiateRequest, TransferCancelRequest,
     TransferStatus
 )
-from ...services.transfer_service import get_money_transfer_service
-from ...core.exceptions import (
+from ..services.transfer_service import get_money_transfer_service
+from ..core.exceptions import (
     ValidationError, NotFoundError, BusinessLogicError, UnauthorizedError
 )
-from ...utils.response import success_response
-from ...config.logging import get_logger
+from ..utils.response import success_response
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 

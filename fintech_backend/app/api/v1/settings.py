@@ -9,17 +9,17 @@ from typing import Optional
 import asyncio
 from datetime import datetime
 
-from ...models.system_settings import (
+from ..models.system_settings import (
     SystemSettingsResponse, SystemSettingsUpdateRequest, SystemSettingsUpdateResponse
 )
-from ...services.system_settings_service import SystemSettingsService
-from ...database.config import get_db
-from ...core.exceptions import (
+from ..services.system_settings_service import SystemSettingsService
+from ..database.config import get_db
+from ..core.exceptions import (
     ValidationException, AuthenticationException, AuthorizationException
 )
-from ...utils.response import success_response
-from ...config.logging import get_logger
-from ...core.auth import get_current_user
+from ..utils.response import success_response
+from ..config.logging import get_logger
+from ..core.auth import get_current_user
 
 logger = get_logger(__name__)
 security = HTTPBearer()

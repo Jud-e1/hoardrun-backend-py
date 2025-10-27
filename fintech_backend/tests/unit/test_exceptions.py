@@ -4,7 +4,7 @@ Unit tests for custom exceptions and exception handling.
 import pytest
 from decimal import Decimal
 
-from ...core.exceptions import (
+from ..core.exceptions import (
     FintechException,
     ValidationException,
     InsufficientFundsException,
