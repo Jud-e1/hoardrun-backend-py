@@ -32,3 +32,6 @@ pyopenssl
 jose
 
 plaid-python
+
+# Email service
+resend
