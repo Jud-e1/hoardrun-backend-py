@@ -21,6 +21,7 @@ from ..core.exceptions import (
 )
 from ..config.settings import get_settings
 from ..config.logging import get_logger
+from .email_service import get_email_service
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -859,9 +860,19 @@ class AuthService:
         logger.info(f"Token invalidation requested for user {user_id} (not implemented)")
     
     async def _send_verification_email(self, email: str, token: str) -> None:
-        """Send email verification email (mock implementation)."""
-        logger.info(f"Sending verification email to {email} with token {token[:10]}...")
-    
+        """Send email verification email using Resend."""
+        email_service = get_email_service()
+        success = await email_service.send_verification_email(email, token)
+        if success:
+            logger.info(f"Verification email sent to {email}")
+        else:
+            logger.error(f"Failed to send verification email to {email}")
+
     async def _send_password_reset_email(self, email: str, token: str) -> None:
-        """Send password reset email (mock implementation)."""
-        logger.info(f"Sending password reset email to {email} with token {token[:10]}...")
+        """Send password reset email using Resend."""
+        email_service = get_email_service()
+        success = await email_service.send_password_reset_email(email, token)
+        if success:
+            logger.info(f"Password reset email sent to {email}")
+        else:
+            logger.error(f"Failed to send password reset email to {email}")
