@@ -44,3 +44,5 @@ anyio
 
 # Email service
 resend
+
+jinja2
