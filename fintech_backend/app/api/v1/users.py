@@ -9,18 +9,18 @@ from typing import Optional, List
 import asyncio
 from datetime import datetime
 
-from ..models.auth import (
+from ...models.auth import (
     UserProfile, UserProfileUpdateRequest, UserSettingsUpdateRequest,
     UserSettings, UserResponse
 )
-from ..services.user_service import UserService
-from ..database.config import get_db
-from ..core.exceptions import (
+from ...services.user_service import UserService
+from ...database.config import get_db
+from ...core.exceptions import (
     ValidationException, AuthenticationException, AuthorizationException,
     UserNotFoundException
 )
-from ..utils.response import success_response
-from ..config.logging import get_logger
+from ...utils.response import success_response
+from ...config.logging import get_logger
 
 logger = get_logger(__name__)
 security = HTTPBearer()

@@ -6,15 +6,15 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from ..models.plaid import (
+from ...models.plaid import (
     PlaidLinkTokenRequest, PlaidLinkTokenResponse,
     PlaidExchangeTokenRequest, PlaidExchangeTokenResponse,
     PlaidAccount, PlaidTransaction, PlaidConnection,
     PlaidSyncRequest, PlaidSyncResponse
 )
-from ..services.plaid_service import get_plaid_service, PlaidService
-from ..auth.dependencies import get_current_user_id, get_current_user
-from ..config.logging import get_logger
+from ...services.plaid_service import get_plaid_service, PlaidService
+from ...auth.dependencies import get_current_user_id, get_current_user
+from ...config.logging import get_logger
 
 logger = get_logger(__name__)
 

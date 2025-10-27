@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
-from ..core.auth import get_current_user
-from ..models.market_data import (
+from ...core.auth import get_current_user
+from ...models.market_data import (
     MarketDataRequest, HistoricalDataRequest, WatchlistRequest, MarketAlertRequest,
     MarketQuote, HistoricalData, MarketSummary, WatchlistProfile, MarketAlert,
     MarketAnalytics, CurrencyExchangeRate, MarketDataType, TimeInterval
 )
-from ..services.market_data_service import MarketDataService
-from ..core.exceptions import NotFoundError, ValidationError, BusinessLogicError
+from ...services.market_data_service import MarketDataService
+from ...core.exceptions import NotFoundError, ValidationError, BusinessLogicError
 
 router = APIRouter(prefix="/market", tags=["market_data"])
 market_service = MarketDataService()

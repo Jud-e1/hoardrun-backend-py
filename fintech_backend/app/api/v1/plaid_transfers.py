@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
 from decimal import Decimal
 
-from ..services.plaid_transfer_service import get_plaid_transfer_service, PlaidTransferService
-from ..models.transfer import TransferQuote, MoneyTransfer
-from ..auth.dependencies import get_current_user_id
-from ..config.logging import get_logger
+from ...services.plaid_transfer_service import get_plaid_transfer_service, PlaidTransferService
+from ...models.transfer import TransferQuote, MoneyTransfer
+from ...auth.dependencies import get_current_user_id
+from ...config.logging import get_logger
 
 logger = get_logger(__name__)
 

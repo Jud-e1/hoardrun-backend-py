@@ -7,7 +7,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from datetime import datetime, UTC
 
-from ..models.dashboard import (
+from ...models.dashboard import (
     DashboardSummaryResponse,
     AnalyticsResponse, 
     NotificationsResponse,
@@ -15,12 +15,12 @@ from ..models.dashboard import (
     NotificationMarkReadResponse,
     NotificationType
 )
-from ..services.dashboard_service import get_dashboard_service, get_notification_service
-from ..utils.validators import validate_user_id
-from ..core.middleware import get_rate_limiter
-from ..core.exceptions import ValidationException
-from ..core.auth import get_current_user
-from ..config.logging import get_logger
+from ...services.dashboard_service import get_dashboard_service, get_notification_service
+from ...utils.validators import validate_user_id
+from ...core.middleware import get_rate_limiter
+from ...core.exceptions import ValidationException
+from ...core.auth import get_current_user
+from ...config.logging import get_logger
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 limiter = get_rate_limiter()
