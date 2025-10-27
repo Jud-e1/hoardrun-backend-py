@@ -180,17 +180,25 @@ class PlaidClient:
             raise Exception(f"Failed to cancel transfer: {str(e)}")
 
     async def create_link_token(
-        self, 
-        user_id: str, 
-        client_name: str = "HoardRun"
+        self,
+        user_id: str,
+        client_name: str = "HoardRun",
+        products: Optional[list] = None,
+        country_codes: Optional[list] = None,
+        language: str = "en",
+        webhook: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create a Plaid Link token.
-        
+
         Args:
             user_id: User identifier
             client_name: Application name
-            
+            products: List of Plaid products (e.g., ['auth', 'transactions'])
+            country_codes: List of country codes (e.g., ['US'])
+            language: Language code
+            webhook: Webhook URL
+
         Returns:
             Link token response
         """
@@ -199,25 +207,135 @@ class PlaidClient:
             from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
             from plaid.model.products import Products
             from plaid.model.country_code import CountryCode
-            
+
+            # Default products if not specified
+            if products is None:
+                products = ['auth', 'transactions']
+
+            # Default country codes if not specified
+            if country_codes is None:
+                country_codes = ['US']
+
             request = LinkTokenCreateRequest(
                 user=LinkTokenCreateRequestUser(client_user_id=user_id),
                 client_name=client_name,
-                products=[Products('auth'), Products('transactions')],
-                country_codes=[CountryCode('US')],
-                language='en'
+                products=[Products(p) for p in products],
+                country_codes=[CountryCode(c) for c in country_codes],
+                language=language
             )
-            
+
+            if webhook:
+                request.webhook = webhook
+
             response = self.client.link_token_create(request)
-            
+
             return {
                 'link_token': response['link_token'],
-                'expiration': response['expiration']
+                'expiration': response['expiration'],
+                'request_id': response.get('request_id')
             }
-            
+
         except plaid.ApiException as e:
             logger.error(f"Failed to create link token: {e}")
             raise Exception(f"Failed to create link token: {str(e)}")
+
+    async def create_debit_card_link_token(
+        self,
+        user_id: str,
+        client_name: str = "HoardRun"
+    ) -> Dict[str, Any]:
+        """
+        Create a Plaid Link token specifically for debit card verification.
+
+        Args:
+            user_id: User identifier
+            client_name: Application name
+
+        Returns:
+            Link token response for debit card verification
+        """
+        try:
+            from plaid.model.link_token_create_request import LinkTokenCreateRequest
+            from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
+            from plaid.model.products import Products
+            from plaid.model.country_code import CountryCode
+
+            request = LinkTokenCreateRequest(
+                user=LinkTokenCreateRequestUser(client_user_id=user_id),
+                client_name=client_name,
+                products=[Products('card_verification')],
+                country_codes=[CountryCode('US')],
+                language='en'
+            )
+
+            response = self.client.link_token_create(request)
+
+            return {
+                'link_token': response['link_token'],
+                'expiration': response['expiration'],
+                'request_id': response.get('request_id')
+            }
+
+        except plaid.ApiException as e:
+            logger.error(f"Failed to create debit card link token: {e}")
+            raise Exception(f"Failed to create debit card link token: {str(e)}")
+
+    async def verify_debit_card(
+        self,
+        public_token: str,
+        account_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Verify a debit card using Plaid.
+
+        Args:
+            public_token: Public token from Plaid Link
+            account_id: Specific account ID to verify (optional)
+
+        Returns:
+            Debit card verification response
+        """
+        try:
+            # First exchange the public token for access token
+            token_response = await self.exchange_public_token(public_token)
+            access_token = token_response['access_token']
+
+            # Get accounts to verify the debit card
+            accounts = await self.get_accounts(access_token)
+
+            # Filter for debit card accounts if account_id is specified
+            if account_id:
+                accounts = [acc for acc in accounts if acc['account_id'] == account_id]
+
+            # Look for debit card accounts (typically checking or savings with card access)
+            debit_accounts = [
+                acc for acc in accounts
+                if acc.get('type') in ['checking', 'savings'] and acc.get('subtype') in ['checking', 'savings']
+            ]
+
+            if not debit_accounts:
+                raise Exception("No eligible debit card accounts found")
+
+            # For verification, we consider the card verified if we can access account details
+            # In a real implementation, you might want to perform additional verification steps
+            verified_account = debit_accounts[0]
+
+            return {
+                'verified': True,
+                'account_id': verified_account['account_id'],
+                'account_name': verified_account['name'],
+                'account_type': verified_account['type'],
+                'account_subtype': verified_account['subtype'],
+                'access_token': access_token,
+                'item_id': token_response['item_id']
+            }
+
+        except plaid.ApiException as e:
+            logger.error(f"Failed to verify debit card: {e}")
+            raise Exception(f"Failed to verify debit card: {str(e)}")
+        except Exception as e:
+            logger.error(f"Debit card verification error: {e}")
+            raise Exception(f"Debit card verification failed: {str(e)}")
 
     async def exchange_public_token(self, public_token: str) -> Dict[str, Any]:
         """
