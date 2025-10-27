@@ -41,5 +41,6 @@ jose
 pytest
 pytest-asyncio
 anyio
+
 # Email service
 resend
