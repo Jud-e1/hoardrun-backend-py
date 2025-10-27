@@ -135,6 +135,31 @@ class Settings(BaseSettings):
         description="Paystack Webhook Secret"
     )
     paystack_timeout: int = Field(default=30, description="Paystack API timeout in seconds")
+    # Email service configuration
+    resend_api_key: str = Field(
+        default="",
+        description="Resend API key for email service"
+    )
+    email_from: str = Field(
+        default="noreply@aronbii.co.ke",
+        description="Default email sender address"
+    )
+    email_verification_subject: str = Field(
+        default="Verify Your AronBii Account",
+        description="Email verification subject line"
+    )
+    email_verification_template: str = Field(
+        default="email_verification.html",
+        description="Email verification template file"
+    )
+    email_password_reset_subject: str = Field(
+        default="Reset Your AronBii Password",
+        description="Password reset email subject line"
+    )
+    email_password_reset_template: str = Field(
+        default="password_reset.html",
+        description="Password reset template file"
+    )
 
     # Rate limiting settings
     rate_limit_requests: int = Field(default=100, description="Rate limit requests per window")
