@@ -191,28 +191,28 @@ async def verify_email_get(
         result = await auth_service.verify_email(token, db)
 
         if result.get("verified"):
-            # Redirect to frontend with success
+            # Redirect directly to signin with success
             return RedirectResponse(
-                url=f"https://hoardrun.vercel.app/verify-email?success=true",
+                url=f"https://hoardrun.vercel.app/signin?verified=true",
                 status_code=302
             )
         else:
-            # Redirect to frontend with error
+            # Redirect to signin with error
             return RedirectResponse(
-                url=f"https://hoardrun.vercel.app/verify-email?error=failed",
+                url=f"https://hoardrun.vercel.app/signin?error=verification_failed",
                 status_code=302
             )
 
     except ValidationException as e:
         logger.error(f"Email verification failed: {e}")
         return RedirectResponse(
-            url=f"https://hoardrun.vercel.app/verify-email?error=invalid_token",
+            url=f"https://hoardrun.vercel.app/signin?error=invalid_token",
             status_code=302
         )
     except Exception as e:
         logger.error(f"Error verifying email: {e}")
         return RedirectResponse(
-            url=f"https://hoardrun.vercel.app/verify-email?error=server_error",
+            url=f"https://hoardrun.vercel.app/signin?error=server_error",
             status_code=302
         )
 
