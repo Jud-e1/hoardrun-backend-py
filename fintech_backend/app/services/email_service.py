@@ -93,8 +93,8 @@ class EmailService:
         """
         subject = settings.email_verification_subject
 
-        # Create verification URL (adjust the URL pattern as needed)
-        verification_url = f"https://hoardrun.vercel.app/api/auth/verify-email?token={verification_token}"
+        # Direct link to backend API - bypasses Next.js middleware
+        verification_url = f"https://hoardrun-backend-py-1.onrender.com/api/v1/auth/verify-email?token={verification_token}"
 
         # Simple HTML template for verification email
         html_content = f"""
