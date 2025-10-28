@@ -94,7 +94,7 @@ class EmailService:
         subject = settings.email_verification_subject
 
         # Create verification URL (adjust the URL pattern as needed)
-        verification_url = f"https://hoardrun.vercel.app/verify-email?token={verification_token}"
+        verification_url = f"https://hoardrun.vercel.app/api/auth/verify-email?token={verification_token}"
 
         # Simple HTML template for verification email
         html_content = f"""

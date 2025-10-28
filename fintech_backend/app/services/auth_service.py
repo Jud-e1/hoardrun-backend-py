@@ -300,28 +300,42 @@ class AuthService:
     async def verify_email(self, token: str, db: Session) -> Dict[str, Any]:
         """
         Verify user email address.
-        
+
         Args:
             token: Email verification token
             db: Database session
-            
+
         Returns:
             Dict: Verification result
         """
         try:
             logger.info(f"Verifying email with token: {token[:10]}...")
-            
-            # Find user by verification token (mock implementation)
+
+            # Find user by verification token
             user = await self._get_user_by_verification_token(token, db)
             if not user:
                 raise ValidationException("Invalid or expired verification token")
-            
-            # Update user status (mock implementation)
+
+            # Check if already verified
+            if user.get("email_verified"):
+                logger.info(f"Email already verified for user: {user['id']}")
+                return {
+                    "verified": True,
+                    "user_id": user["id"],
+                    "message": "Email already verified"
+                }
+
+            # Update user verification status and set to ACTIVE
             await self._update_user_verification_status(user["id"], db)
-            
+
             logger.info(f"Email verified successfully for user: {user['id']}")
-            return {"verified": True, "user_id": user["id"]}
-            
+            return {
+                "verified": True,
+                "user_id": user["id"],
+                "email": user["email"],
+                "message": "Email verified successfully"
+            }
+
         except ValidationException:
             raise
         except Exception as e:
