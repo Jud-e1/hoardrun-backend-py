@@ -396,17 +396,50 @@ async def change_password(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.get("/welcome", response_model=dict)
+async def welcome_endpoint(request: Request):
+    """
+    Welcome endpoint that logs request metadata and returns a welcome message.
+
+    Returns a JSON response with a welcome message.
+    Request metadata (method and path) is logged for monitoring.
+    """
+    try:
+        # Log request metadata
+        logger.info(
+            f"Welcome endpoint accessed: {request.method} {request.url.path}",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "user_agent": request.headers.get("user-agent", "unknown"),
+                "client_ip": request.client.host if request.client else "unknown"
+            }
+        )
+
+        return success_response(
+            data={
+                "message": "Welcome to the FastAPI Service!",
+                "timestamp": datetime.now().isoformat()
+            },
+            message="Welcome message retrieved successfully"
+        )
+
+    except Exception as e:
+        logger.error(f"Error in welcome endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 @router.get("/health", response_model=dict)
 async def auth_health():
     """
     Health check endpoint for authentication service.
-    
+
     Returns the operational status of the authentication service.
     """
     try:
         # Simulate service checks
         await asyncio.sleep(0.01)  # Mock processing time
-        
+
         return success_response(
             data={
                 "service": "authentication_service",
@@ -416,7 +449,7 @@ async def auth_health():
             },
             message="Authentication service is healthy"
         )
-        
+
     except Exception as e:
         logger.error(f"Auth service health check failed: {e}")
         raise HTTPException(status_code=503, detail="Service unavailable")
