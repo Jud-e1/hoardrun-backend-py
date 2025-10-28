@@ -345,43 +345,55 @@ class AuthService:
     async def resend_verification_email(self, email: str, db: Session) -> Dict[str, Any]:
         """
         Resend email verification.
-        
+
         Args:
             email: User email
             db: Database session
-            
+
         Returns:
             Dict: Resend result
         """
         try:
             logger.info(f"Resending verification email to: {email}")
-            
+
             # Get user by email
             user = await self._get_user_by_email(email, db)
             if not user:
                 raise UserNotFoundException(f"User with email {email} not found")
-            
+
             # Check if already verified
             if user.get("email_verified"):
                 return {"sent": False, "message": "Email already verified"}
-            
+
             # Generate new verification token
             verification_token = self._generate_verification_token()
-            
+
             # Update user with new token (mock implementation)
             await self._update_verification_token(user["id"], verification_token, db)
-            
-            # Send verification email (mock)
-            await self._send_verification_email(email, verification_token)
-            
-            logger.info(f"Verification email resent to: {email}")
+
+            # Return success immediately - email will be sent in background
+            logger.info(f"Verification email queued for resend to: {email}")
             return {"sent": True, "email": email}
-            
+
         except UserNotFoundException:
             raise
         except Exception as e:
             logger.error(f"Error resending verification email: {e}")
             raise ValidationException(f"Failed to resend verification email: {str(e)}")
+
+    async def send_verification_email_background(self, email: str, verification_token: str):
+        """
+        Background task to send verification email.
+
+        Args:
+            email: User email
+            verification_token: Verification token
+        """
+        try:
+            await self._send_verification_email(email, verification_token)
+            logger.info(f"Background verification email sent to: {email}")
+        except Exception as e:
+            logger.error(f"Background email send failed for {email}: {e}")
     
     async def request_password_reset(self, email: str, db: Session) -> Dict[str, Any]:
         """

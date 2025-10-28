@@ -2,7 +2,8 @@
 Authentication API endpoints for user registration, login, and profile management.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status, Body, Request
+from fastapi import APIRouter, HTTPException, Depends, status, Body, Request, Query, BackgroundTasks
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -174,27 +175,69 @@ async def refresh_token(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.get("/verify-email")
+async def verify_email_get(
+    token: str = Query(..., description="Email verification token"),
+    db: Session = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """
+    Handle email verification link clicks from email.
+    This endpoint is called directly when users click the verification link.
+    """
+    try:
+        logger.info(f"API: Email verification GET for token {token[:10]}...")
+
+        result = await auth_service.verify_email(token, db)
+
+        if result.get("verified"):
+            # Redirect to frontend with success
+            return RedirectResponse(
+                url=f"https://hoardrun.vercel.app/verify-email?success=true",
+                status_code=302
+            )
+        else:
+            # Redirect to frontend with error
+            return RedirectResponse(
+                url=f"https://hoardrun.vercel.app/verify-email?error=failed",
+                status_code=302
+            )
+
+    except ValidationException as e:
+        logger.error(f"Email verification failed: {e}")
+        return RedirectResponse(
+            url=f"https://hoardrun.vercel.app/verify-email?error=invalid_token",
+            status_code=302
+        )
+    except Exception as e:
+        logger.error(f"Error verifying email: {e}")
+        return RedirectResponse(
+            url=f"https://hoardrun.vercel.app/verify-email?error=server_error",
+            status_code=302
+        )
+
+
 @router.post("/verify-email", response_model=dict)
-async def verify_email(
+async def verify_email_post(
     request: EmailVerificationRequest = Body(...),
     db: Session = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service)
 ):
     """
-    Verify user email address.
-    
+    Handle email verification via POST (for API calls).
+
     Confirms email address using verification token.
     """
     try:
-        logger.info(f"API: Email verification for token {request.token[:10]}...")
-        
+        logger.info(f"API: Email verification POST for token {request.token[:10]}...")
+
         result = await auth_service.verify_email(request.token, db)
-        
+
         return success_response(
             data=result,
             message="Email verified successfully"
         )
-        
+
     except ValidationException as e:
         logger.error(f"Email verification failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -205,25 +248,35 @@ async def verify_email(
 
 @router.post("/resend-verification", response_model=dict)
 async def resend_verification_email(
+    background_tasks: BackgroundTasks,
     email: str = Body(..., embed=True),
     db: Session = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service)
 ):
     """
     Resend email verification.
-    
+
     Sends a new verification email to the user.
     """
     try:
         logger.info(f"API: Resending verification email to {email}")
-        
+
         result = await auth_service.resend_verification_email(email, db)
-        
+
+        # Add background task to send email
+        if result.get("sent"):
+            verification_token = await auth_service._generate_verification_token()
+            background_tasks.add_task(
+                auth_service.send_verification_email_background,
+                email,
+                verification_token
+            )
+
         return success_response(
             data=result,
             message="Verification email sent successfully"
         )
-        
+
     except UserNotFoundException as e:
         logger.error(f"User not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
