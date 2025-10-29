@@ -39,6 +39,7 @@ from app.api.v1.investments import router as investments_router
 from app.api.v1.mastercard import router as mastercard_router
 from app.api.v1.collective_capital import router as collective_capital_router
 from app.api.v1.paystack import router as paystack_router
+from app.api.v1.java_security import router as java_security_router
 from app.api.websocket import router as websocket_router
 
 # Get application settings
@@ -133,6 +134,7 @@ app.include_router(investments_router, prefix="/api/v1")
 app.include_router(mastercard_router, prefix="/api/v1")
 app.include_router(collective_capital_router, prefix="/api/v1")
 app.include_router(paystack_router, prefix="/api/v1")
+app.include_router(java_security_router, prefix="/api/v1")
 app.include_router(websocket_router)
 
 

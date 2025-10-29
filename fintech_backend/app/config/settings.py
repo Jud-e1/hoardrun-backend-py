@@ -136,6 +136,32 @@ class Settings(BaseSettings):
     )
     paystack_timeout: int = Field(default=30, description="Paystack API timeout in seconds")
 
+    # Java Security Integration
+    java_security_enabled: bool = Field(
+        default=False,
+        description="Enable integration with Java security services"
+    )
+    java_gateway_url: str = Field(
+        default="http://localhost:8080",
+        description="Java API Gateway URL"
+    )
+    java_auth_service_url: str = Field(
+        default="http://localhost:8081",
+        description="Java Auth Service URL"
+    )
+    java_transaction_service_url: str = Field(
+        default="http://localhost:8082",
+        description="Java Transaction Service URL"
+    )
+    java_audit_service_url: str = Field(
+        default="http://localhost:8083",
+        description="Java Audit Service URL"
+    )
+    java_jwt_secret: str = Field(
+        default="c2VjdXJlLXN1cGVyLXNlY3JldC1kZW1vLXNob3VsZC1iZS0zMi1ieXRlcy1vci1sb25nZXI=",
+        description="Java JWT secret (base64 encoded)"
+    )
+
     # Rate limiting settings
     rate_limit_requests: int = Field(default=100, description="Rate limit requests per window")
     rate_limit_window: int = Field(default=60, description="Rate limit window in seconds")
