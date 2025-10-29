@@ -1,0 +1,130 @@
+# Docker Compose for Hybrid Python + Java Security Architecture
+version: '3.9'
+
+services:
+  # PostgreSQL Database (shared between Python and Java services)
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: hoardrun_db
+      POSTGRES_USER: hoardrun_user
+      POSTGRES_PASSWORD: hoardrun_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hoardrun_user -d hoardrun_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and rate limiting
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # Python FastAPI Backend
+  python-backend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://hoardrun_user:hoardrun_password@postgres:5432/hoardrun_db
+      - JAVA_SECURITY_ENABLED=true
+      - JAVA_GATEWAY_URL=http://java-gateway:8080
+      - JAVA_AUTH_SERVICE_URL=http://java-auth:8081
+      - JAVA_TRANSACTION_SERVICE_URL=http://java-transaction:8082
+      - JAVA_AUDIT_SERVICE_URL=http://java-audit:8083
+    depends_on:
+      postgres:
+        condition: service_healthy
+      - redis
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Java API Gateway
+  java-gateway:
+    build: ../hoardrun-security/gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_REDIS_HOST=redis
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/hoardrun_db
+      - SPRING_DATASOURCE_USERNAME=hoardrun_user
+      - SPRING_DATASOURCE_PASSWORD=hoardrun_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+      - redis
+      - java-auth
+      - java-transaction
+
+  # Java Auth Service
+  java-auth:
+    build: ../hoardrun-security/auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/hoardrun_db
+      - SPRING_DATASOURCE_USERNAME=hoardrun_user
+      - SPRING_DATASOURCE_PASSWORD=hoardrun_password
+      - SPRING_DATA_REDIS_HOST=redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      - redis
+
+  # Java Transaction Service
+  java-transaction:
+    build: ../hoardrun-security/transaction-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/hoardrun_db
+      - SPRING_DATASOURCE_USERNAME=hoardrun_user
+      - SPRING_DATASOURCE_PASSWORD=hoardrun_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Java Audit Service
+  java-audit:
+    build: ../hoardrun-security/audit-service
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/hoardrun_db
+      - SPRING_DATASOURCE_USERNAME=hoardrun_user
+      - SPRING_DATASOURCE_PASSWORD=hoardrun_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../hoardrun-security/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  redis_data:

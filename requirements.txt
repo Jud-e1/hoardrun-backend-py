@@ -31,5 +31,6 @@ pyopenssl
 
 # Payment processing
 requests
+PyJWT==2.8.0
 
 jose
