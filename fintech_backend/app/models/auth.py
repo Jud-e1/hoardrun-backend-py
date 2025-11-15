@@ -216,7 +216,7 @@ class UserCreate(BaseModel):
     status: UserStatus = UserStatus.PENDING
     role: UserRole = UserRole.USER
     email_verified: bool = False
-    email_verification_token: Optional[str] = None
+    email_verification_code: Optional[str] = None
     password_reset_token: Optional[str] = None
     password_reset_expires: Optional[datetime] = None
 

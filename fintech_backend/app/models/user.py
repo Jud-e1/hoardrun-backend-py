@@ -38,7 +38,7 @@ class User(Base):
 
     # Email verification
     email_verified = Column(Boolean, default=False, nullable=False)
-    email_verification_token = Column(String(255), nullable=True)
+    email_verification_code = Column(String(6), nullable=True, unique=True)
 
     # Password reset
     password_reset_token = Column(String(255), nullable=True)

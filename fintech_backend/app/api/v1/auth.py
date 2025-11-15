@@ -265,11 +265,11 @@ async def resend_verification_email(
 
         # Add background task to send email
         if result.get("sent"):
-            verification_token = auth_service._generate_verification_token()
+            verification_code = auth_service._generate_verification_code()
             background_tasks.add_task(
                 auth_service.send_verification_email_background,
                 email,
-                verification_token
+                verification_code
             )
 
         return success_response(
