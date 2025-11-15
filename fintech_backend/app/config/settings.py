@@ -141,11 +141,11 @@ class Settings(BaseSettings):
         description="Resend API key for email service"
     )
     email_from: str = Field(
-        default="noreply@aronbii.co.ke",
+        default="noreply@hoardrun.com",
         description="Default email sender address"
     )
     email_verification_subject: str = Field(
-        default="Verify Your AronBii Account",
+        default="Verify Your Hoardrun Account",
         description="Email verification subject line"
     )
     email_verification_template: str = Field(
@@ -153,7 +153,7 @@ class Settings(BaseSettings):
         description="Email verification template file"
     )
     email_password_reset_subject: str = Field(
-        default="Reset Your AronBii Password",
+        default="Reset Your Hoardrun Password",
         description="Password reset email subject line"
     )
     email_password_reset_template: str = Field(

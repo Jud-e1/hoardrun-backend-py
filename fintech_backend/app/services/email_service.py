@@ -93,10 +93,7 @@ class EmailService:
         """
         subject = settings.email_verification_subject
 
-        # Direct link to backend API - bypasses Next.js middleware
-        verification_url = f"https://hoardrun-backend-py-1.onrender.com/api/v1/auth/verify-email?token={verification_token}"
-
-        # Simple HTML template for verification email
+        # Simple HTML template for verification email with code display
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -110,20 +107,21 @@ class EmailService:
 
                 <p>Hello{user_name and f' {user_name}' or ''},</p>
 
-                <p>Thank you for signing up! Please verify your email address by clicking the link below:</p>
+                <p>Thank you for signing up! Please verify your email address by entering the verification code below:</p>
 
                 <div style="text-align: center; margin: 30px 0;">
-                    <a href="{verification_url}"
-                       style="background-color: #007bff; color: white; padding: 12px 24px;
-                              text-decoration: none; border-radius: 5px; display: inline-block;">
-                        Verify Email Address
-                    </a>
+                    <div style="background-color: #f8f9fa; border: 2px solid #007bff; border-radius: 8px;
+                                padding: 20px; display: inline-block; font-size: 24px; font-weight: bold;
+                                letter-spacing: 4px; color: #007bff;">
+                        {verification_token}
+                    </div>
                 </div>
 
-                <p>If the button doesn't work, you can also copy and paste this link into your browser:</p>
-                <p style="word-break: break-all; color: #666;">{verification_url}</p>
+                <p style="text-align: center; margin: 20px 0;">
+                    Enter this code on the verification page to complete your registration.
+                </p>
 
-                <p>This link will expire in 24 hours.</p>
+                <p>This code will expire in 24 hours.</p>
 
                 <p>If you didn't create an account, please ignore this email.</p>
 

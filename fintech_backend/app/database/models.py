@@ -147,7 +147,7 @@ class User(Base, TimestampMixin):
 
     # Authentication fields
     password_hash = Column(String, nullable=False)
-    email_verification_token = Column(String, unique=True)
+    email_verification_code = Column(String, unique=True)
     email_verified = Column(Boolean, default=False)
     password_reset_token = Column(String, unique=True)
     password_reset_expires = Column(DateTime(timezone=True))
