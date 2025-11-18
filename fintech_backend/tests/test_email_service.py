@@ -7,6 +7,7 @@ import pytest
 import os
 import sys
 from pathlib import Path
+import asyncio
 
 # Add the parent directory to the path to import the app modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -70,3 +71,39 @@ async def test_password_reset_email():
     success = await email_service.send_password_reset_email(test_email, test_token)
 
     assert success, f"Failed to send password reset email to {test_email}"
+
+
+# Allow direct execution with python
+if __name__ == "__main__":
+    print("Running email service tests...\n")
+    
+    async def run_tests():
+        """Run all tests manually"""
+        settings = get_settings()
+        
+        if not settings.resend_api_key:
+            print("❌ RESEND_API_KEY environment variable is not set!")
+            print("Please add RESEND_API_KEY to your .env file")
+            return
+        
+        print(f"✓ Resend API key found: {settings.resend_api_key[:10]}...")
+        print(f"✓ Email from: {settings.email_from}\n")
+        
+        # Test verification email
+        print("Test 1: Sending verification email...")
+        try:
+            await test_verification_email()
+            print("✅ Verification email test passed!\n")
+        except Exception as e:
+            print(f"❌ Verification email test failed: {str(e)}\n")
+        
+        # Test password reset email
+        print("Test 2: Sending password reset email...")
+        try:
+            await test_password_reset_email()
+            print("✅ Password reset email test passed!\n")
+        except Exception as e:
+            print(f"❌ Password reset email test failed: {str(e)}\n")
+    
+    # Run the async tests
+    asyncio.run(run_tests())

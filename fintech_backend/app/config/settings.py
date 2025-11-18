@@ -185,7 +185,7 @@ class Settings(BaseSettings):
     
     # Database settings
     database_url: str = Field(
-        default="postgresql://hoardrun_srcm_user:DD5GKZbGUUb7jP3Oem6cTnQMBZOchKKx@dpg-d3svuqgdl3ps73avqgeg-a.oregon-postgres.render.com/hoardrun_srcm",
+        default="postgresql://postgres.qpmdlptrpxsvojncrjhi:1236HNzP74u8EMM@aws-1-eu-west-1.pooler.supabase.com:6543/postgres",
         description="Database connection URL"
     )
     database_pool_size: int = Field(
@@ -213,7 +213,7 @@ class Settings(BaseSettings):
         description="Enable SQLAlchemy query logging"
     )
     database_ssl_mode: str = Field(
-        default="prefer",
+        default="require",
         description="PostgreSQL SSL mode (disable, allow, prefer, require, verify-ca, verify-full)"
     )
     database_connect_timeout: int = Field(
