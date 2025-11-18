@@ -51,7 +51,7 @@ class AuthService:
             UserProfile: Created user profile
             
         Raises:
-            EmailAlreadyExistsException: If email is already registered
+            EmailAlreadyExistsException: If email is already registered and verified
             ValidationException: If validation fails
         """
         try:
@@ -60,7 +60,41 @@ class AuthService:
             # Check if user already exists
             existing_user = await self._get_user_by_email(request.email, db)
             if existing_user:
-                raise EmailAlreadyExistsException(f"User with email {request.email} already exists")
+                # If user exists but email is not verified, resend verification email
+                if not existing_user.get("email_verified"):
+                    logger.info(f"User exists but not verified: {request.email}")
+                    
+                    # Generate new verification code
+                    verification_code = self._generate_verification_code()
+                    
+                    # Update verification code
+                    await self._update_verification_code(existing_user["id"], verification_code, db)
+                    
+                    # Send verification email
+                    await self._send_verification_email(existing_user["email"], verification_code)
+                    
+                    # Return user profile with a flag indicating email needs verification
+                    user_profile = UserProfile(
+                        id=existing_user["id"],
+                        email=existing_user["email"],
+                        first_name=existing_user["first_name"],
+                        last_name=existing_user["last_name"],
+                        phone_number=existing_user.get("phone_number"),
+                        date_of_birth=existing_user.get("date_of_birth"),
+                        country=existing_user.get("country"),
+                        id_number=existing_user.get("id_number"),
+                        status=UserStatus(existing_user["status"]),
+                        role=UserRole(existing_user["role"]),
+                        email_verified=existing_user["email_verified"],
+                        created_at=existing_user["created_at"],
+                        updated_at=existing_user["updated_at"]
+                    )
+                    
+                    logger.info(f"Verification email resent to: {request.email}")
+                    return user_profile
+                else:
+                    # User exists and is verified
+                    raise EmailAlreadyExistsException(f"User with email {request.email} already exists")
             
             # Hash password
             password_hash = self._hash_password(request.password)
@@ -710,72 +744,6 @@ class AuthService:
                 }
             return None
         except Exception as e:
-            logger.error(f"Database error in _get_user_by_email: {e}")
-            raise AuthenticationException(f"Database connection error: {str(e)}")
-    
-    async def _get_user_by_id(self, user_id: str, db: Session) -> Optional[Dict[str, Any]]:
-        """Get user by ID."""
-        from ..database.models import User as DBUser
-
-        user = db.query(DBUser).filter(DBUser.id == user_id).first()
-        if user:
-            return {
-                "id": user.id,
-                "email": user.email,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "phone_number": user.phone_number,
-                "date_of_birth": user.date_of_birth,
-                "country": user.country,
-                "id_number": user.id_number,
-                "bio": user.bio,
-                "profile_picture_url": user.profile_picture_url,
-                "status": user.status,
-                "role": user.role,
-                "email_verified": user.email_verified,
-                "password_hash": user.password_hash,
-                "email_verification_code": user.email_verification_code,
-                "password_reset_token": user.password_reset_token,
-                "password_reset_expires": user.password_reset_expires,
-                "last_login_at": user.last_login_at,
-                "created_at": user.created_at,
-                "updated_at": user.updated_at,
-                "is_active": user.is_active
-            }
-        return None
-    
-    async def _get_user_by_verification_code(self, code: str, db: Session) -> Optional[Dict[str, Any]]:
-        """Get user by verification code."""
-        try:
-            from ..database.models import User as DBUser
-
-            user = db.query(DBUser).filter(DBUser.email_verification_code == code).first()
-            if user:
-                return {
-                    "id": user.id,
-                    "email": user.email,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "phone_number": user.phone_number,
-                    "date_of_birth": user.date_of_birth,
-                    "country": user.country,
-                    "id_number": user.id_number,
-                    "bio": user.bio,
-                    "profile_picture_url": user.profile_picture_url,
-                    "status": user.status,
-                    "role": user.role,
-                    "email_verified": user.email_verified,
-                    "password_hash": user.password_hash,
-                    "email_verification_code": user.email_verification_code,
-                    "password_reset_token": user.password_reset_token,
-                    "password_reset_expires": user.password_reset_expires,
-                    "last_login_at": user.last_login_at,
-                    "created_at": user.created_at,
-                    "updated_at": user.updated_at,
-                    "is_active": user.is_active
-                }
-            return None
-        except Exception as e:
             logger.error(f"Error getting user by verification code: {e}")
             return None
     
@@ -904,4 +872,71 @@ class AuthService:
         if success:
             logger.info(f"Password reset email sent to {email}")
         else:
-            logger.error(f"Failed to send password reset email to {email}")
+             logger.error(f"Failed to send password reset email to {email}")
+
+    
+    async def _get_user_by_id(self, user_id: str, db: Session) -> Optional[Dict[str, Any]]:
+        """Get user by ID."""
+        from ..database.models import User as DBUser
+
+        user = db.query(DBUser).filter(DBUser.id == user_id).first()
+        if user:
+            return {
+                "id": user.id,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phone_number": user.phone_number,
+                "date_of_birth": user.date_of_birth,
+                "country": user.country,
+                "id_number": user.id_number,
+                "bio": user.bio,
+                "profile_picture_url": user.profile_picture_url,
+                "status": user.status,
+                "role": user.role,
+                "email_verified": user.email_verified,
+                "password_hash": user.password_hash,
+                "email_verification_code": user.email_verification_code,
+                "password_reset_token": user.password_reset_token,
+                "password_reset_expires": user.password_reset_expires,
+                "last_login_at": user.last_login_at,
+                "created_at": user.created_at,
+                "updated_at": user.updated_at,
+                "is_active": user.is_active
+            }
+        return None
+    
+    async def _get_user_by_verification_code(self, code: str, db: Session) -> Optional[Dict[str, Any]]:
+        """Get user by verification code."""
+        try:
+            from ..database.models import User as DBUser
+
+            user = db.query(DBUser).filter(DBUser.email_verification_code == code).first()
+            if user:
+                return {
+                    "id": user.id,
+                    "email": user.email,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "phone_number": user.phone_number,
+                    "date_of_birth": user.date_of_birth,
+                    "country": user.country,
+                    "id_number": user.id_number,
+                    "bio": user.bio,
+                    "profile_picture_url": user.profile_picture_url,
+                    "status": user.status,
+                    "role": user.role,
+                    "email_verified": user.email_verified,
+                    "password_hash": user.password_hash,
+                    "email_verification_code": user.email_verification_code,
+                    "password_reset_token": user.password_reset_token,
+                    "password_reset_expires": user.password_reset_expires,
+                    "last_login_at": user.last_login_at,
+                    "created_at": user.created_at,
+                    "updated_at": user.updated_at,
+                    "is_active": user.is_active
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error getting user by verification code: {e}")
+            return None
