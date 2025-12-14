@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool, QueuePool
-from app.config.settings import settings
+from ..config.settings import settings
 import logging
 
 logger = logging.getLogger(__name__)

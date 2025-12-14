@@ -8,7 +8,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 
-from app.models.base import BaseResponse, BaseModel as AppBaseModel
+from ..models.base import BaseResponse, BaseModel as AppBaseModel
 
 
 class TransferType(str, Enum):
@@ -19,6 +19,7 @@ class TransferType(str, Enum):
     CRYPTO = "crypto"
     REMITTANCE = "remittance"
     INSTANT_TRANSFER = "instant_transfer"
+    PLAID_TRANSFER = "plaid_transfer"
 
 
 class TransferStatus(str, Enum):

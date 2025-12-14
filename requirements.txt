@@ -33,4 +33,17 @@ pyopenssl
 requests
 PyJWT==2.8.0
 
+# Plaid integration
+plaid-python
+
 jose
+
+# Testing dependencies
+pytest
+pytest-asyncio
+anyio
+
+# Email service
+resend
+
+jinja2

@@ -53,6 +53,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         return {
             "user_id": user_id,
             "email": payload.get("email"),
+            "role": payload.get("role"),
             "is_active": payload.get("is_active", True),
             "is_verified": payload.get("is_verified", False),
             "token_type": payload.get("token_type", "access")

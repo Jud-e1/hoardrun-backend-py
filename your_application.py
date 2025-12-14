@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "fintech_backend"))
 
 # Import the FastAPI app
-from app.main import app
+from ..main import app
 
 # WSGI/ASGI application that Render is looking for
 application = app

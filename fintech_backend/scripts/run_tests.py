@@ -165,7 +165,7 @@ def check_database_setup():
     print("\nChecking database setup...")
     
     try:
-        from app.database.config import check_database_connection, get_database_info
+        from ..database.config import check_database_connection, get_database_info
         
         # Check connection
         if check_database_connection():

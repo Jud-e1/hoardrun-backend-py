@@ -12,10 +12,10 @@ from pathlib import Path
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from app.services.auth_service import AuthService
-from app.models.auth import UserRegisterRequest
-from app.database.config import get_db, check_database_connection
-from app.database.models import User
+from ..services.auth_service import AuthService
+from ..models.auth import UserRegisterRequest
+from ..database.config import get_db, check_database_connection
+from ..database.models import User
 
 
 async def check_and_create_demo_user():

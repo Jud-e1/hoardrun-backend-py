@@ -12,9 +12,9 @@ from pathlib import Path
 # Add the fintech_backend directory to the path
 sys.path.insert(0, str(Path(__file__).parent / "fintech_backend"))
 
-from app.services.auth_service import AuthService
-from app.models.auth import UserRegisterRequest
-from app.database.config import get_db
+from ..services.auth_service import AuthService
+from ..models.auth import UserRegisterRequest
+from ..database.config import get_db
 
 
 async def create_user(email: str, password: str, first_name: str, last_name: str, phone: str = None, country: str = "US"):

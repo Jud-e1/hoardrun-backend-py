@@ -8,31 +8,22 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import HTTPBearer
 from decimal import Decimal
 
-from app.core.auth import get_current_user
-from app.models.savings import (
+from ...core.auth import get_current_user
+from ...models.savings import (
     SavingsGoalCreateRequest,
     SavingsGoalUpdateRequest,
     ContributionRequest,
     SavingsGoalProfile,
-    ContributionProfile,
     SavingsGoalHistory,
-    SavingsGoalStats,
-    SavingsInsights,
     AutoSaveSettings,
     SavingsGoalStatus,
     FixedDepositCreateRequest,
-    FixedDepositProfile,
     AutomatedSavingCreateRequest,
-    AutomatedSavingProfile,
-    FixedDepositTerm,
-    FixedDepositStatus,
-    AutomatedSavingFrequency,
-    AutomatedSavingStatus,
     SavingsGoalType
 )
-from app.models.base import BaseResponse, PaginatedResponse
-from app.services.savings_service import SavingsService
-from app.core.exceptions import ValidationError, NotFoundError, ConflictError
+from ...models.base import BaseResponse, PaginatedResponse
+from ...services.savings_service import SavingsService
+from ...core.exceptions import ValidationError, NotFoundError, ConflictError
 
 router = APIRouter(prefix="/savings", tags=["Savings"])
 security = HTTPBearer()

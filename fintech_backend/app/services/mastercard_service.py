@@ -8,13 +8,13 @@ from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from decimal import Decimal
 
-from app.services.auth_service import AuthService
-from app.core.exceptions import (
+from ..services.auth_service import AuthService
+from ..core.exceptions import (
     ValidationException, AuthenticationException, NotFoundError, BusinessLogicError
 )
-from app.config.settings import get_settings
-from app.config.logging import get_logger
-from app.external.mastercard_api import get_mastercard_client
+from ..config.settings import get_settings
+from ..config.logging import get_logger
+from ..external.mastercard_api import get_mastercard_client
 
 logger = get_logger(__name__)
 settings = get_settings()

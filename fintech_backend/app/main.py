@@ -2,7 +2,7 @@
 FastAPI application entry point for the fintech backend service.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import uvicorn
 from datetime import datetime
@@ -10,37 +10,46 @@ import os
 import json
 from contextlib import asynccontextmanager
 
-from app.config.settings import get_settings
-from app.config.logging import setup_logging, get_logger
-from app.core.middleware import setup_middleware
-from app.core.exception_handlers import register_exception_handlers
-from app.utils.json_encoder import CustomJSONEncoder
-from app.database.config import check_database_connection, create_tables, initialize_database
-from app.api.health import router as health_router
-from app.api.v1.dashboard import router as dashboard_router
-from app.api.v1.auth import router as auth_router
-from app.api.v1.users import router as users_router
-from app.api.v1.beneficiaries import router as beneficiaries_router
-from app.api.v1.mobile_money import router as mobile_money_router
-from app.api.v1.payment_methods import router as payment_methods_router
-from app.api.v1.kyc import router as kyc_router
-from app.api.v1.savings import router as savings_router
-from app.api.v1.notifications import router as notifications_router
-from app.api.v1.market_data import router as market_data_router
-from app.api.v1.analytics import router as analytics_router
-from app.api.v1.support import router as support_router
-from app.api.v1.audit import router as audit_router
-from app.api.v1.cards import router as cards_router
-from app.api.v1.accounts import router as accounts_router
-from app.api.v1.transactions import router as transactions_router
-from app.api.v1.transfers import router as transfers_router
-from app.api.p2p import router as p2p_router
-from app.api.v1.investments import router as investments_router
-from app.api.v1.mastercard import router as mastercard_router
-from app.api.v1.collective_capital import router as collective_capital_router
-from app.api.v1.paystack import router as paystack_router
-from app.api.v1.java_security import router as java_security_router
-from app.api.websocket import router as websocket_router
+from .config.settings import get_settings
+from .config.logging import setup_logging, get_logger
+from .core.middleware import setup_middleware
+from .core.exception_handlers import register_exception_handlers
+from .utils.json_encoder import CustomJSONEncoder
+from .database.config import check_database_connection, create_tables, initialize_database
+from .api.health import router as health_router
+from .api.v1.dashboard import router as dashboard_router
+from .api.v1.auth import router as auth_router
+from .api.v1.users import router as users_router
+from .api.v1.beneficiaries import router as beneficiaries_router
+from .api.v1.mobile_money import router as mobile_money_router
+from .api.v1.payment_methods import router as payment_methods_router
+from .api.v1.kyc import router as kyc_router
+from .api.v1.savings import router as savings_router
+from .api.v1.notifications import router as notifications_router
+from .api.v1.market_data import router as market_data_router
+from .api.v1.analytics import router as analytics_router
+from .api.v1.support import router as support_router
+from .api.v1.audit import router as audit_router
+from .api.v1.cards import router as cards_router
+from .api.v1.accounts import router as accounts_router
+from .api.v1.transactions import router as transactions_router
+from .api.v1.transfers import router as transfers_router
+from .api.p2p import router as p2p_router
+from .api.v1.investments import router as investments_router
+from .api.v1.mastercard import router as mastercard_router
+from .api.v1.collective_capital import router as collective_capital_router
+from .api.v1.paystack import router as paystack_router
+from .api.v1.plaid import router as plaid_router
+from .api.v1.plaid_transfers import router as plaid_transfers_router
+from .api.v1.settings import router as settings_router
+from .api.websocket import router as websocket_router
+from .api.admin.auth import router as admin_auth_router
+from .api.admin.users import router as admin_users_router
+from .api.admin.system import router as admin_system_router
+from .api.admin.financial import router as admin_financial_router
+from .api.admin.security import router as admin_security_router
+from .api.admin.analytics import router as admin_analytics_router
+from .api.public import router as public_router
 
 # Get application settings
 settings = get_settings()
@@ -134,15 +143,24 @@ app.include_router(investments_router, prefix="/api/v1")
 app.include_router(mastercard_router, prefix="/api/v1")
 app.include_router(collective_capital_router, prefix="/api/v1")
 app.include_router(paystack_router, prefix="/api/v1")
-app.include_router(java_security_router, prefix="/api/v1")
+app.include_router(plaid_router, prefix="/api/v1")
+app.include_router(plaid_transfers_router, prefix="/api/v1")
+app.include_router(settings_router, prefix="/api/v1")
 app.include_router(websocket_router)
+app.include_router(admin_auth_router, prefix="/api/v1/admin")
+app.include_router(admin_users_router, prefix="/api/v1/admin")
+app.include_router(admin_system_router, prefix="/api/v1/admin")
+app.include_router(admin_financial_router, prefix="/api/v1/admin")
+app.include_router(admin_security_router, prefix="/api/v1/admin")
+app.include_router(admin_analytics_router, prefix="/api/v1/admin")
+app.include_router(public_router, prefix="/api/public")
 
 
 @app.get("/health", tags=["Health"])
 async def health_check():
     """
     Health check endpoint to verify service availability.
-    
+
     Returns:
         dict: Service health status and metadata
     """
@@ -162,7 +180,7 @@ async def health_check():
 async def root():
     """
     Root endpoint providing basic API information.
-    
+
     Returns:
         dict: API welcome message and basic information
     """
@@ -174,10 +192,35 @@ async def root():
     }
 
 
+@app.get("/welcome", tags=["Root"])
+async def welcome_endpoint(request: Request):
+    """
+    Welcome endpoint that logs request metadata and returns a welcome message.
+
+    Returns a JSON response with a welcome message.
+    Request metadata (method and path) is logged for monitoring.
+    """
+    # Log request metadata
+    logger.info(
+        f"Welcome endpoint accessed: {request.method} {request.url.path}",
+        extra={
+            "method": request.method,
+            "path": request.url.path,
+            "user_agent": request.headers.get("user-agent", "unknown"),
+            "client_ip": request.client.host if request.client else "unknown"
+        }
+    )
+
+    return {
+        "message": "Welcome to the FastAPI Service!",
+        "timestamp": datetime.now().isoformat()
+    }
+
+
 if __name__ == "__main__":
     # Get port from environment variable (for Render deployment) or default to 8000
     port = int(os.getenv("PORT", 8000))
-    
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

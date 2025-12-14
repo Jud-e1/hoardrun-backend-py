@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "fintech_backend"))
 
 # Import the FastAPI app
-from app.main import app
+from fintech_backend.app.main import app
 
 if __name__ == "__main__":
     import uvicorn

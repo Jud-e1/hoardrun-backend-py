@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field, validator
-from app.models.base import BaseResponse
+from ..models.base import BaseResponse
 
 class KYCStatus(str, Enum):
     """KYC verification status"""

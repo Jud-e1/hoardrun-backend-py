@@ -187,7 +187,7 @@ async def get_paystack_config(
     to integrate with Paystack.
     """
     try:
-        from ...config.settings import get_settings
+        from ..config.settings import get_settings
         settings = get_settings()
         
         return {
@@ -217,7 +217,7 @@ async def paystack_health_check():
     Checks if the Paystack service is properly configured and accessible.
     """
     try:
-        from ...config.settings import get_settings
+        from ..config.settings import get_settings
         settings = get_settings()
         
         # Basic configuration check

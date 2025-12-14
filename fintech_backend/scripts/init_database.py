@@ -27,7 +27,7 @@ from pathlib import Path
 # Add the parent directory to the path so we can import our app
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.database import (
+from ..database import (
     check_database_connection, 
     get_database_info, 
     initialize_database,
@@ -35,7 +35,7 @@ from app.database import (
     drop_tables,
     engine
 )
-from app.config.settings import get_settings
+from ..config.settings import get_settings
 from alembic.config import Config
 from alembic import command
 from sqlalchemy.exc import OperationalError
@@ -104,8 +104,8 @@ def create_sample_data():
     logger.info("Creating sample data...")
     
     try:
-        from app.database.models import User, Account, AccountTypeEnum, AccountStatusEnum
-        from app.database.config import SessionLocal
+        from ..database.models import User, Account, AccountTypeEnum, AccountStatusEnum
+        from ..database.config import SessionLocal
         from decimal import Decimal
         import uuid
         from datetime import datetime

@@ -9,15 +9,15 @@ from datetime import datetime, timedelta, date
 from decimal import Decimal
 from typing import List, Optional, Dict, Any
 
-from app.models.investment import (
+from ..models.investment import (
     Portfolio, Holding, Order, Watchlist, MarketData, DividendPayment,
     AssetType, OrderType, OrderSide, OrderStatus, PortfolioType,
     RiskTolerance, InvestmentGoal, PortfolioCreateRequest,
     PortfolioUpdateRequest, OrderCreateRequest, WatchlistCreateRequest,
     WatchlistUpdateRequest, PortfolioAnalysisRequest, RebalanceRequest
 )
-from app.models.base import PaginationRequest
-from app.core.exceptions import NotFoundError, ValidationError, BusinessLogicError
+from ..models.base import PaginationRequest
+from ..core.exceptions import NotFoundError, ValidationError, BusinessLogicError
 
 
 class InvestmentService:

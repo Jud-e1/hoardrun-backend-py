@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     
     # CORS settings
     cors_origins: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8080", "https://hoardruns.vercel.app", "https://hoardrun.vercel.app"], 
+        default=["http://localhost:3000", "http://localhost:8080", "http://localhost:5173", "http://localhost:5175", "https://hoardruns.vercel.app", "https://hoardrun.vercel.app"],
         description="Allowed CORS origins"
     )
     cors_allow_credentials: bool = Field(default=True, description="Allow CORS credentials")
@@ -135,6 +135,31 @@ class Settings(BaseSettings):
         description="Paystack Webhook Secret"
     )
     paystack_timeout: int = Field(default=30, description="Paystack API timeout in seconds")
+    # Email service configuration
+    resend_api_key: str = Field(
+        default="",
+        description="Resend API key for email service"
+    )
+    email_from: str = Field(
+        default="noreply@hoardrun.com",
+        description="Default email sender address"
+    )
+    email_verification_subject: str = Field(
+        default="Verify Your Hoardrun Account",
+        description="Email verification subject line"
+    )
+    email_verification_template: str = Field(
+        default="email_verification.html",
+        description="Email verification template file"
+    )
+    email_password_reset_subject: str = Field(
+        default="Reset Your Hoardrun Password",
+        description="Password reset email subject line"
+    )
+    email_password_reset_template: str = Field(
+        default="password_reset.html",
+        description="Password reset template file"
+    )
 
     # Java Security Integration
     java_security_enabled: bool = Field(
@@ -186,7 +211,7 @@ class Settings(BaseSettings):
     
     # Database settings
     database_url: str = Field(
-        default="postgresql://hoardrun_srcm_user:DD5GKZbGUUb7jP3Oem6cTnQMBZOchKKx@dpg-d3svuqgdl3ps73avqgeg-a.oregon-postgres.render.com/hoardrun_srcm",
+        default="postgresql://postgres.qpmdlptrpxsvojncrjhi:1236HNzP74u8EMM@aws-1-eu-west-1.pooler.supabase.com:6543/postgres",
         description="Database connection URL"
     )
     database_pool_size: int = Field(
@@ -214,7 +239,7 @@ class Settings(BaseSettings):
         description="Enable SQLAlchemy query logging"
     )
     database_ssl_mode: str = Field(
-        default="prefer",
+        default="require",
         description="PostgreSQL SSL mode (disable, allow, prefer, require, verify-ca, verify-full)"
     )
     database_connect_timeout: int = Field(

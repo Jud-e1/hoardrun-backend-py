@@ -8,7 +8,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 
-from app.models.base import BaseResponse, BaseModel as BaseModelWithTimestamps
+from ..models.base import BaseResponse, BaseModel as BaseModelWithTimestamps
 
 
 class TransactionType(str, Enum):
@@ -288,6 +288,13 @@ class TransactionSearchResponse(BaseResponse):
     total_matches: int = Field(..., description="Total number of matches")
     search_time_ms: float = Field(..., description="Search execution time in milliseconds")
     suggestions: List[str] = Field(default_factory=list, description="Search suggestions")
+
+
+class BalanceHistoryPoint(BaseModel):
+    """Point in time balance history."""
+    balance_date: date = Field(..., description="Date of balance")
+    balance: Decimal = Field(..., description="Account balance at this point")
+    transaction_count: int = Field(default=0, description="Number of transactions on this date")
 
 
 class TransactionCategoryStats(BaseModel):

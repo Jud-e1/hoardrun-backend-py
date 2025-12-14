@@ -8,7 +8,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 
-from app.models.base import BaseResponse, TimestampMixin
+from ..models.base import BaseResponse, TimestampMixin
 
 
 class P2PTransactionType(str, Enum):

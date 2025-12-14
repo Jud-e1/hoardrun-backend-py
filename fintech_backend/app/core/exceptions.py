@@ -294,3 +294,6 @@ ValidationError = ValidationException
 BusinessLogicError = BusinessRuleViolationException
 ConflictError = EmailAlreadyExistsException
 AuthenticationError = AuthenticationException
+UnauthorizedError = AuthorizationException
+InsufficientFundsError = InsufficientFundsException 
+ServiceError = FintechException

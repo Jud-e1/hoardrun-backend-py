@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, Path
 from typing import Optional, List
 import asyncio
 
-from app.models.collective_capital import (
+from ...models.collective_capital import (
     CollectiveCircle, CircleFilters, CircleStats, CreateCircleRequest,
     UpdateCircleRequest, CreateProposalRequest, VoteOnProposalRequest,
     JoinCircleRequest, ContributeToCircleRequest, InvestmentProposal,
@@ -16,13 +16,13 @@ from app.models.collective_capital import (
     JoinRequestListResponse, AIRecommendationResponse, ActivityResponse,
     InvestmentCategory, CircleStatus, ProposalStatus
 )
-from app.services.collective_capital_service import CollectiveCapitalService
-from app.core.exceptions import (
+from ...services.collective_capital_service import CollectiveCapitalService
+from ...core.exceptions import (
     ValidationException, AccountNotFoundException, 
     BusinessRuleViolationException, FintechException
 )
-from app.utils.response import success_response
-from app.config.logging import get_logger
+from ...utils.response import success_response
+from ...config.logging import get_logger
 
 logger = get_logger(__name__)
 
