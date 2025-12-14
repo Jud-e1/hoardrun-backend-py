@@ -13,9 +13,9 @@ from pathlib import Path
 # Add the app directory to Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from app.config.settings import get_settings
-from app.config.logging import setup_logging, get_logger
-from app.database.config import check_database_connection, initialize_database
+from ..config.settings import get_settings
+from ..config.logging import setup_logging, get_logger
+from ..database.config import check_database_connection, initialize_database
 
 def wait_for_database(max_retries=30, retry_delay=2):
     """

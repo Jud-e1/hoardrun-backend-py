@@ -1,11 +1,11 @@
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
-from app.database.config import get_db
-from app.repositories.database_repository import TransferRepository, AccountRepository, TransactionRepository
-from app.models.transfer import TransferResponse, TransferCreateRequest, TransferStatus, TransferType
-from app.models.transaction import TransactionType, TransactionStatus
-from app.database.models import Transfer as DBTransfer
-from app.core.exceptions import AccountNotFoundException, ValidationException
+from ..database.config import get_db
+from ..repositories.database_repository import TransferRepository, AccountRepository, TransactionRepository
+from ..models.transfer import TransferResponse, TransferCreateRequest, TransferStatus, TransferType
+from ..models.transaction import TransactionType, TransactionStatus
+from ..database.models import Transfer as DBTransfer
+from ..core.exceptions import AccountNotFoundException, ValidationException
 import uuid
 from datetime import datetime
 from decimal import Decimal

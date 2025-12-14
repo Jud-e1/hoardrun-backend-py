@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import List, Optional, Dict, Any
 from fastapi import HTTPException
 
-from app.models.collective_capital import (
+from ..models.collective_capital import (
     CollectiveCircle, CircleMember, InvestmentProposal, CircleInvestment,
     CircleActivity, JoinRequest, AIRecommendationModel, LoyaltyBadge,
     CircleFilters, CircleStats, CreateCircleRequest, UpdateCircleRequest,
@@ -20,11 +20,11 @@ from app.models.collective_capital import (
     RiskLevel, InvestmentStatus, ActivityType, BadgeRarity, AIRecommendationType,
     Priority, JoinRequestStatus, AIRecommendation, BlockchainNetwork
 )
-from app.core.exceptions import (
+from ..core.exceptions import (
     ValidationException, BusinessRuleViolationException, 
     AccountNotFoundException, FintechException
 )
-from app.config.logging import get_logger
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 

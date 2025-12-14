@@ -10,8 +10,8 @@ from datetime import datetime, timedelta
 import httpx
 import base64
 
-from app.config.settings import get_settings
-from app.config.logging import get_logger
+from ..config.settings import get_settings
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 settings = get_settings()

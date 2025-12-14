@@ -7,8 +7,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer
 
-from app.core.auth import get_current_user
-from app.models.support import (
+from ...core.auth import get_current_user
+from ...models.support import (
     SupportTicketRequest,
     SupportTicketProfile,
     TicketMessageRequest,
@@ -22,9 +22,9 @@ from app.models.support import (
     TicketCategory,
     FAQCategory
 )
-from app.services.support_service import SupportService
-from app.core.exceptions import ValidationError, NotFoundError
-from app.models.base import PaginatedResponse, SuccessResponse
+from ...services.support_service import SupportService
+from ...core.exceptions import ValidationError, NotFoundError
+from ...models.base import PaginatedResponse, SuccessResponse
 
 router = APIRouter(prefix="/support", tags=["Support & Help"])
 security = HTTPBearer()

@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from pydantic import ValidationError
 
-from app.models.base import (
+from ..models.base import (
     BaseModel,
     BaseRequest,
     BaseResponse,

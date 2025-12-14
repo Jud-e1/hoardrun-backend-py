@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPException, status
 from fastapi.responses import HTMLResponse
 
-from app.core.websocket import (
+from ..core.websocket import (
     manager,
     authenticate_websocket,
     handle_websocket_message,
@@ -19,7 +19,7 @@ from app.core.websocket import (
     broadcast_market_update,
     broadcast_system_announcement
 )
-from app.core.exceptions import AuthenticationError
+from ..core.exceptions import AuthenticationError
 
 logger = logging.getLogger(__name__)
 

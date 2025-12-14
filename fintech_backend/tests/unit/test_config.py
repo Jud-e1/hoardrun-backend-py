@@ -12,8 +12,8 @@ from typing import Dict, Any
 import pytest
 from pydantic import ValidationError
 
-from app.config.settings import Settings, get_settings, reload_settings
-from app.config.logging import (
+from ..config.settings import Settings, get_settings, reload_settings
+from ..config.logging import (
     setup_logging,
     get_logger,
     set_correlation_id,

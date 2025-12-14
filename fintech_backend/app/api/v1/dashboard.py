@@ -20,9 +20,11 @@ from ...utils.validators import validate_user_id
 from ...core.middleware import get_rate_limiter
 from ...core.exceptions import ValidationException
 from ...core.auth import get_current_user
+from ...config.logging import get_logger
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 limiter = get_rate_limiter()
+logger = get_logger(__name__)
 
 
 @router.get(
@@ -240,6 +242,35 @@ async def mark_notifications_read(
 
 
 @router.get(
+    "/welcome",
+    summary="Welcome Endpoint",
+    description="Returns a welcome message with request logging"
+)
+async def welcome_endpoint(request: Request):
+    """
+    Welcome endpoint that logs request metadata and returns a welcome message.
+
+    Returns a JSON response with a welcome message.
+    Request metadata (method and path) is logged for monitoring.
+    """
+    # Log request metadata
+    logger.info(
+        f"Welcome endpoint accessed: {request.method} {request.url.path}",
+        extra={
+            "method": request.method,
+            "path": request.url.path,
+            "user_agent": request.headers.get("user-agent", "unknown"),
+            "client_ip": request.client.host if request.client else "unknown"
+        }
+    )
+
+    return {
+        "message": "Welcome to the FastAPI Service!",
+        "timestamp": datetime.now(UTC).isoformat()
+    }
+
+
+@router.get(
     "/health-check",
     summary="Dashboard Service Health Check",
     description="Check the health of dashboard-related services"
@@ -247,32 +278,37 @@ async def mark_notifications_read(
 async def dashboard_health_check():
     """
     Health check for dashboard services.
-    
+
     Verifies that dashboard services are operational.
     """
     try:
         # Basic service health check
         dashboard_service = get_dashboard_service()
         notification_service = get_notification_service()
-        
+
         # Test basic repository connectivity
         test_accounts = await dashboard_service.accounts_repo.count()
         test_notifications = await notification_service.notifications_repo.count()
-        
+
+        # Count unique users from accounts
+        all_accounts = await dashboard_service.accounts_repo.get_all(limit=1000)
+        unique_users = len(set(acc.get("user_id") for acc in all_accounts if acc.get("user_id")))
+
         return {
             "status": "healthy",
             "service": "dashboard",
             "checks": {
                 "accounts_repository": "ok",
                 "notifications_repository": "ok",
+                "total_users": unique_users,
                 "total_accounts": test_accounts,
                 "total_notifications": test_notifications
             },
             "timestamp": datetime.now(UTC).isoformat()
         }
-        
+
     except Exception as e:
         raise HTTPException(
-            status_code=503, 
+            status_code=503,
             detail=f"Dashboard service unhealthy: {str(e)}"
         )

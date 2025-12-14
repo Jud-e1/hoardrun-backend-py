@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 import random
 
-from app.models.audit import (
+from ..models.audit import (
     AuditLogRequest,
     AuditLogEntry,
     ComplianceCheckRequest,
@@ -24,8 +24,8 @@ from app.models.audit import (
     ComplianceType,
     RiskLevel
 )
-from app.models.base import PaginatedResponse
-from app.core.exceptions import NotFoundError, ValidationError
+from ..models.base import PaginatedResponse
+from ..core.exceptions import NotFoundError, ValidationError
 
 class AuditService:
     """Service for handling audit and compliance operations"""

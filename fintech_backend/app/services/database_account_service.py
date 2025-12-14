@@ -6,22 +6,22 @@ from decimal import Decimal
 from datetime import datetime, date
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.database.models import (
+from ..database import get_db
+from ..database.models import (
     User, Account, Transaction, AccountTypeEnum, AccountStatusEnum,
     TransactionTypeEnum, TransactionStatusEnum, TransactionDirectionEnum
 )
-from app.repositories.database_repository import (
+from ..repositories.database_repository import (
     UserRepository, AccountRepository, TransactionRepository
 )
-from app.models.flat_account import (
+from ..models.flat_account import (
     AccountCreateRequest, AccountUpdateRequest, AccountTransferRequest
 )
-from app.core.exceptions import (
+from ..core.exceptions import (
     ValidationException, AccountNotFoundException, BusinessRuleViolationException,
     InsufficientFundsException, FintechException
 )
-from app.config.logging import get_logger
+from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 

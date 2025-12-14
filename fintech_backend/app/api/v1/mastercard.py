@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from decimal import Decimal
 
-from app.database.config import get_db
-from app.services.mastercard_service import get_mastercard_service, MastercardService
-from app.core.exceptions import ValidationException, NotFoundError, BusinessLogicError
+from ...database.config import get_db
+from ...services.mastercard_service import get_mastercard_service, MastercardService
+from ...core.exceptions import ValidationException, NotFoundError, BusinessLogicError
 
 router = APIRouter(prefix="/mastercard", tags=["Mastercard"])
 security = HTTPBearer()

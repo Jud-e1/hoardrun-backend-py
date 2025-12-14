@@ -12,7 +12,7 @@ fintech_backend_path = Path(__file__).parent / "fintech_backend"
 sys.path.insert(0, str(fintech_backend_path))
 
 # Import the FastAPI app
-from app.main import app
+from ..main import app
 
 # WSGI application for gunicorn
 application = app

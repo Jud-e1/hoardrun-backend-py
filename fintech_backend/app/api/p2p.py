@@ -7,8 +7,8 @@ from fastapi.security import HTTPBearer
 from typing import Optional, List
 from datetime import date, datetime
 
-from app.services.p2p_service import P2PService
-from app.models.p2p import (
+from ..services.p2p_service import P2PService
+from ..models.p2p import (
     P2PSendRequest, MoneyRequestCreateRequest, SplitBillCreateRequest,
     PaymentLinkCreateRequest, P2PQuoteRequest, PaymentLinkPaymentRequest,
     P2PTransactionResponse, P2PTransactionListResponse, MoneyRequestResponse,
@@ -17,8 +17,8 @@ from app.models.p2p import (
     P2PAnalyticsResponse, P2PContactListResponse, P2PTransactionType,
     P2PStatus, P2PRequestStatus, ContactMethod
 )
-from app.models.base import PaginationRequest, BaseResponse
-from app.core.auth import get_current_user
+from ..models.base import PaginationRequest, BaseResponse
+from ..core.auth import get_current_user
 
 router = APIRouter(prefix="/p2p", tags=["P2P Money"])
 security = HTTPBearer()

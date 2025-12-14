@@ -9,7 +9,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 import calendar
 
-from app.models.savings import (
+from ..models.savings import (
     SavingsGoalCreateRequest,
     SavingsGoalUpdateRequest,
     ContributionRequest,
@@ -24,8 +24,8 @@ from app.models.savings import (
     ContributionFrequency,
     AutoSaveRule
 )
-from app.core.exceptions import ValidationError, NotFoundError, ConflictError
-from app.repositories.mock_repository import MockRepository
+from ..core.exceptions import ValidationError, NotFoundError, ConflictError
+from ..repositories.mock_repository import MockRepository
 
 class SavingsService:
     def __init__(self):
@@ -860,7 +860,7 @@ class SavingsService:
     # Fixed Deposit Methods
     def _get_interest_rate_for_term(self, term):
         """Get interest rate for fixed deposit term"""
-        from app.models.savings import FixedDepositTerm
+        from ..models.savings import FixedDepositTerm
         rates = {
             FixedDepositTerm.MONTHS_6: 3.5,
             FixedDepositTerm.MONTHS_12: 4.5,
@@ -881,7 +881,7 @@ class SavingsService:
 
     async def get_user_fixed_deposits(self, user_id: str):
         """Get user's fixed deposits"""
-        from app.models.savings import FixedDepositProfile
+        from ..models.savings import FixedDepositProfile
         fixed_deposits = []
         for fd_data in self.repository.data.get("fixed_deposits", {}).values():
             if fd_data["user_id"] == user_id:
@@ -905,7 +905,7 @@ class SavingsService:
 
     async def create_fixed_deposit(self, user_id: str, fd_data):
         """Create a new fixed deposit"""
-        from app.models.savings import FixedDepositProfile, FixedDepositStatus
+        from ..models.savings import FixedDepositProfile, FixedDepositStatus
         import uuid
         from datetime import datetime
         fd_id = f"fd_{uuid.uuid4().hex[:8]}"
@@ -948,7 +948,7 @@ class SavingsService:
     # Automated Saving Methods
     async def get_user_automated_savings(self, user_id: str):
         """Get user's automated savings"""
-        from app.models.savings import AutomatedSavingProfile
+        from ..models.savings import AutomatedSavingProfile
         automated_savings = []
         for as_data in self.repository.data.get("automated_savings", {}).values():
             if as_data["user_id"] == user_id:
@@ -968,7 +968,7 @@ class SavingsService:
 
     async def create_automated_saving(self, user_id: str, as_data):
         """Create a new automated saving"""
-        from app.models.savings import AutomatedSavingProfile, AutomatedSavingStatus
+        from ..models.savings import AutomatedSavingProfile, AutomatedSavingStatus
         import uuid
         from datetime import datetime
         as_id = f"as_{uuid.uuid4().hex[:8]}"

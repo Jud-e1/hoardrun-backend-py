@@ -1,10 +1,10 @@
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
-from app.database.config import get_db
-from app.repositories.database_repository import InvestmentRepository, AccountRepository
-from app.models.investment import InvestmentResponse, InvestmentCreateRequest, InvestmentUpdateRequest
-from app.database.models import Investment as DBInvestment, InvestmentType, InvestmentStatus
-from app.core.exceptions import NotFoundError, ValidationError
+from ..database.config import get_db
+from ..repositories.database_repository import InvestmentRepository, AccountRepository
+from ..models.investment import InvestmentResponse, InvestmentCreateRequest, InvestmentUpdateRequest
+from ..database.models import Investment as DBInvestment, InvestmentType, InvestmentStatus
+from ..core.exceptions import NotFoundError, ValidationError
 import uuid
 from datetime import datetime
 from decimal import Decimal

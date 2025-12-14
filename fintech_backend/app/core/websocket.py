@@ -12,8 +12,8 @@ import asyncio
 from jose import jwt
 from jose.exceptions import JWTError as InvalidTokenError
 
-from app.config.settings import get_settings
-from app.core.exceptions import AuthenticationError
+from ..config.settings import get_settings
+from ..core.exceptions import AuthenticationError
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
