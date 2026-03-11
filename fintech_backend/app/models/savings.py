@@ -208,6 +208,75 @@ class AutoSaveSettings(BaseModel):
     minimum_balance: Decimal = Field(default=0, ge=0, description="Minimum balance to maintain")
     maximum_daily_auto_save: Decimal = Field(default=100, gt=0, description="Maximum daily auto-save amount")
 
+class WeeklyActionStatus(str, Enum):
+    """Status of weekly action items"""
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    SKIPPED = "skipped"
+    OVERDUE = "overdue"
+
+class WeeklyAction(BaseModel):
+    """Individual weekly action item for a savings goal"""
+    id: str = Field(..., description="Action ID")
+    week_number: int = Field(..., ge=1, description="Week number in the goal timeline")
+    week_start_date: date = Field(..., description="Start date of the week")
+    week_end_date: date = Field(..., description="End date of the week")
+    target_amount: Decimal = Field(..., gt=0, description="Target amount to save this week")
+    actual_amount: Decimal = Field(default=Decimal("0"), ge=0, description="Actual amount saved this week")
+    status: WeeklyActionStatus = Field(default=WeeklyActionStatus.PENDING, description="Action status")
+    action_description: str = Field(..., description="Description of what to do this week")
+    tips: List[str] = Field(default=[], description="Tips for achieving this week's goal")
+    is_milestone: bool = Field(default=False, description="Whether this week is a milestone")
+    milestone_percentage: Optional[float] = Field(None, description="Milestone percentage if applicable")
+    completed_at: Optional[datetime] = Field(None, description="When the action was completed")
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+            date: lambda v: v.isoformat(),
+            Decimal: lambda v: float(v)
+        }
+
+class GoalMilestone(BaseModel):
+    """Milestone checkpoint for a savings goal"""
+    id: str = Field(..., description="Milestone ID")
+    goal_id: str = Field(..., description="Associated goal ID")
+    milestone_name: str = Field(..., description="Milestone name")
+    target_percentage: float = Field(..., ge=0, le=100, description="Target percentage of goal")
+    target_amount: Decimal = Field(..., description="Target amount for this milestone")
+    target_date: date = Field(..., description="Target date for milestone")
+    is_achieved: bool = Field(default=False, description="Whether milestone is achieved")
+    achieved_at: Optional[datetime] = Field(None, description="When milestone was achieved")
+    reward_message: Optional[str] = Field(None, description="Congratulatory message")
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+            date: lambda v: v.isoformat(),
+            Decimal: lambda v: float(v)
+        }
+
+class WeeklyActionPlan(BaseModel):
+    """Complete weekly action plan for a savings goal"""
+    goal_id: str = Field(..., description="Savings goal ID")
+    goal_name: str = Field(..., description="Goal name")
+    total_weeks: int = Field(..., ge=1, description="Total number of weeks")
+    current_week: int = Field(..., ge=0, description="Current week number")
+    weekly_actions: List[WeeklyAction] = Field(..., description="List of weekly actions")
+    milestones: List[GoalMilestone] = Field(default=[], description="Goal milestones")
+    overall_progress: float = Field(..., ge=0, le=100, description="Overall progress percentage")
+    on_track: bool = Field(..., description="Whether goal is on track")
+    weeks_ahead_behind: int = Field(..., description="Weeks ahead (positive) or behind (negative)")
+    next_action: Optional[WeeklyAction] = Field(None, description="Next pending action")
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+            date: lambda v: v.isoformat(),
+            Decimal: lambda v: float(v)
+        }
+
 class SavingsInsights(BaseModel):
     """Savings insights and recommendations"""
     current_savings_rate: float = Field(..., description="Current monthly savings rate")

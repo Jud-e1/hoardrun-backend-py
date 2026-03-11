@@ -26,6 +26,8 @@ from .api.v1.payment_methods import router as payment_methods_router
 from .api.v1.kyc import router as kyc_router
 from .api.v1.savings import router as savings_router
 from .api.v1.notifications import router as notifications_router
+from .api.v1.smart_notifications import router as smart_notifications_router
+from .api.v1.ai_guidance import router as ai_guidance_router
 from .api.v1.market_data import router as market_data_router
 from .api.v1.analytics import router as analytics_router
 from .api.v1.support import router as support_router
@@ -129,6 +131,8 @@ app.include_router(payment_methods_router, prefix="/api/v1")
 app.include_router(kyc_router, prefix="/api/v1")
 app.include_router(savings_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
+app.include_router(smart_notifications_router, prefix="/api/v1")
+app.include_router(ai_guidance_router, prefix="/api/v1")
 app.include_router(market_data_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(support_router, prefix="/api/v1")

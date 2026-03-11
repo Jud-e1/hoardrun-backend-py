@@ -22,7 +22,11 @@ from ..models.savings import (
     SavingsGoalStatus,
     SavingsGoalType,
     ContributionFrequency,
-    AutoSaveRule
+    AutoSaveRule,
+    WeeklyAction,
+    WeeklyActionStatus,
+    WeeklyActionPlan,
+    GoalMilestone
 )
 from ..core.exceptions import ValidationError, NotFoundError, ConflictError
 from ..repositories.mock_repository import MockRepository
@@ -789,7 +793,243 @@ class SavingsService:
         self.repository.update("auto_save_settings", user_id, settings_dict)
         
         return settings_data
-    
+
+    async def generate_weekly_action_plan(
+        self,
+        goal_id: str,
+        user_id: str
+    ) -> WeeklyActionPlan:
+        """Generate a weekly action plan for a savings goal"""
+
+        # Get the goal
+        goal_data = self.repository.get("savings_goals", goal_id)
+        if not goal_data or goal_data["user_id"] != user_id:
+            raise NotFoundError(f"Savings goal {goal_id} not found")
+
+        target_amount = goal_data["target_amount"]
+        current_amount = goal_data["current_amount"]
+        target_date = goal_data["target_date"]
+        created_at = goal_data["created_at"]
+
+        # Calculate timeline
+        if not target_date:
+            # Default to 1 year if no target date
+            target_date = date.today() + timedelta(days=365)
+
+        start_date = created_at.date() if hasattr(created_at, 'date') else created_at
+        days_total = (target_date - start_date).days
+        days_elapsed = (date.today() - start_date).days
+        days_remaining = (target_date - date.today()).days
+
+        # Calculate weeks
+        total_weeks = max(1, days_total // 7)
+        current_week = min(total_weeks, days_elapsed // 7)
+        weeks_remaining = max(0, days_remaining // 7)
+
+        # Calculate weekly target
+        remaining_amount = target_amount - current_amount
+        weekly_target = remaining_amount / max(weeks_remaining, 1) if weeks_remaining > 0 else remaining_amount
+
+        # Generate weekly actions
+        weekly_actions = []
+        week_start = start_date
+
+        for week_num in range(1, total_weeks + 1):
+            week_end = week_start + timedelta(days=6)
+
+            # Determine status
+            if week_num < current_week:
+                status = WeeklyActionStatus.COMPLETED
+            elif week_num == current_week:
+                status = WeeklyActionStatus.IN_PROGRESS
+            elif week_end < date.today():
+                status = WeeklyActionStatus.OVERDUE
+            else:
+                status = WeeklyActionStatus.PENDING
+
+            # Check if this is a milestone week (25%, 50%, 75%, 100%)
+            progress_at_week = (week_num / total_weeks) * 100
+            is_milestone = False
+            milestone_percentage = None
+
+            for milestone_pct in [25, 50, 75, 100]:
+                if abs(progress_at_week - milestone_pct) < (100 / total_weeks):
+                    is_milestone = True
+                    milestone_percentage = float(milestone_pct)
+                    break
+
+            # Generate action description and tips
+            action_description = f"Save ${weekly_target:.2f} this week"
+            tips = self._generate_weekly_tips(goal_data["goal_type"], weekly_target, week_num, total_weeks)
+
+            # Calculate actual amount for completed weeks
+            actual_amount = Decimal("0")
+            if status == WeeklyActionStatus.COMPLETED:
+                # Estimate based on progress
+                actual_amount = weekly_target
+
+            action = WeeklyAction(
+                id=f"{goal_id}_week_{week_num}",
+                week_number=week_num,
+                week_start_date=week_start,
+                week_end_date=week_end,
+                target_amount=weekly_target,
+                actual_amount=actual_amount,
+                status=status,
+                action_description=action_description,
+                tips=tips,
+                is_milestone=is_milestone,
+                milestone_percentage=milestone_percentage,
+                completed_at=datetime.now() if status == WeeklyActionStatus.COMPLETED else None
+            )
+            weekly_actions.append(action)
+
+            week_start = week_end + timedelta(days=1)
+
+        # Generate milestones
+        milestones = self._generate_milestones(goal_id, goal_data, total_weeks, start_date)
+
+        # Calculate progress metrics
+        overall_progress = (current_amount / target_amount * 100) if target_amount > 0 else 0
+        expected_progress = (current_week / total_weeks * 100) if total_weeks > 0 else 0
+        on_track = overall_progress >= expected_progress * 0.9  # Within 90% of expected
+        weeks_ahead_behind = int((overall_progress - expected_progress) / 100 * total_weeks)
+
+        # Find next pending action
+        next_action = next((a for a in weekly_actions if a.status == WeeklyActionStatus.PENDING), None)
+
+        return WeeklyActionPlan(
+            goal_id=goal_id,
+            goal_name=goal_data["name"],
+            total_weeks=total_weeks,
+            current_week=current_week,
+            weekly_actions=weekly_actions,
+            milestones=milestones,
+            overall_progress=overall_progress,
+            on_track=on_track,
+            weeks_ahead_behind=weeks_ahead_behind,
+            next_action=next_action
+        )
+
+    def _generate_weekly_tips(
+        self,
+        goal_type: SavingsGoalType,
+        weekly_target: Decimal,
+        week_num: int,
+        total_weeks: int
+    ) -> List[str]:
+        """Generate contextual tips for weekly savings"""
+        tips = []
+
+        # General tips
+        daily_amount = weekly_target / 7
+        tips.append(f"Save just ${daily_amount:.2f} per day to reach this week's goal")
+
+        # Goal-specific tips
+        if goal_type == SavingsGoalType.EMERGENCY_FUND:
+            tips.append("Cut one unnecessary subscription this week")
+            tips.append("Pack lunch instead of eating out 3 times")
+        elif goal_type == SavingsGoalType.VACATION:
+            tips.append("Skip one coffee shop visit per day")
+            tips.append("Cook at home instead of ordering takeout")
+        elif goal_type == SavingsGoalType.HOME_PURCHASE:
+            tips.append("Review and reduce utility bills")
+            tips.append("Sell unused items online")
+        else:
+            tips.append("Find one expense to reduce this week")
+            tips.append("Look for cashback opportunities")
+
+        # Progress-based tips
+        if week_num <= total_weeks // 4:
+            tips.append("You're just getting started - build the habit!")
+        elif week_num <= total_weeks // 2:
+            tips.append("You're making progress - keep the momentum!")
+        elif week_num <= 3 * total_weeks // 4:
+            tips.append("You're over halfway - don't give up now!")
+        else:
+            tips.append("Final push - you're almost there!")
+
+        return tips[:3]  # Return top 3 tips
+
+    def _generate_milestones(
+        self,
+        goal_id: str,
+        goal_data: Dict[str, Any],
+        total_weeks: int,
+        start_date: date
+    ) -> List[GoalMilestone]:
+        """Generate milestone checkpoints for a goal"""
+        milestones = []
+        target_amount = goal_data["target_amount"]
+        current_amount = goal_data["current_amount"]
+
+        milestone_percentages = [25, 50, 75, 100]
+        milestone_names = ["Quarter Way There!", "Halfway Champion!", "Three-Quarters Strong!", "Goal Achieved!"]
+        reward_messages = [
+            "🎉 Amazing start! You've saved 25% of your goal!",
+            "🌟 Incredible! You're halfway to your dream!",
+            "🚀 Outstanding! Just 25% more to go!",
+            "🏆 Congratulations! You've reached your goal!"
+        ]
+
+        for i, pct in enumerate(milestone_percentages):
+            milestone_amount = target_amount * Decimal(str(pct / 100))
+            milestone_week = int(total_weeks * pct / 100)
+            milestone_date = start_date + timedelta(weeks=milestone_week)
+
+            is_achieved = current_amount >= milestone_amount
+
+            milestone = GoalMilestone(
+                id=f"{goal_id}_milestone_{pct}",
+                goal_id=goal_id,
+                milestone_name=milestone_names[i],
+                target_percentage=float(pct),
+                target_amount=milestone_amount,
+                target_date=milestone_date,
+                is_achieved=is_achieved,
+                achieved_at=datetime.now() if is_achieved else None,
+                reward_message=reward_messages[i]
+            )
+            milestones.append(milestone)
+
+        return milestones
+
+    async def get_weekly_action_plan(
+        self,
+        goal_id: str,
+        user_id: str
+    ) -> WeeklyActionPlan:
+        """Get the weekly action plan for a goal (generates if not exists)"""
+        return await self.generate_weekly_action_plan(goal_id, user_id)
+
+    async def update_weekly_action_status(
+        self,
+        goal_id: str,
+        user_id: str,
+        week_number: int,
+        status: WeeklyActionStatus,
+        actual_amount: Optional[Decimal] = None
+    ) -> WeeklyAction:
+        """Update the status of a weekly action"""
+
+        # Get the action plan
+        plan = await self.get_weekly_action_plan(goal_id, user_id)
+
+        # Find the specific week
+        action = next((a for a in plan.weekly_actions if a.week_number == week_number), None)
+        if not action:
+            raise NotFoundError(f"Week {week_number} not found in action plan")
+
+        # Update status
+        action.status = status
+        if actual_amount is not None:
+            action.actual_amount = actual_amount
+        if status == WeeklyActionStatus.COMPLETED:
+            action.completed_at = datetime.now()
+
+        # Note: In a real implementation, this would persist to database
+        return action
+
     async def health_check(self) -> Dict[str, Any]:
         """Health check for savings service"""
         

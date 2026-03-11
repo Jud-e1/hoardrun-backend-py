@@ -19,7 +19,9 @@ from ...models.savings import (
     SavingsGoalStatus,
     FixedDepositCreateRequest,
     AutomatedSavingCreateRequest,
-    SavingsGoalType
+    SavingsGoalType,
+    WeeklyActionPlan,
+    WeeklyActionStatus
 )
 from ...models.base import BaseResponse, PaginatedResponse
 from ...services.savings_service import SavingsService
@@ -502,6 +504,87 @@ async def get_savings_insights(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve savings insights: {str(e)}"
+        )
+
+@router.get(
+    "/goals/{goal_id}/weekly-plan",
+    response_model=BaseResponse,
+    summary="Get Weekly Action Plan",
+    description="Get weekly action breakdown for a savings goal"
+)
+async def get_weekly_action_plan(
+    goal_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get weekly action plan for a savings goal.
+
+    Returns a detailed breakdown of weekly actions, milestones, and progress tracking.
+    """
+    try:
+        user_id = current_user.get("user_id")
+
+        # Get weekly action plan
+        plan = await savings_service.get_weekly_action_plan(goal_id, user_id)
+
+        return BaseResponse(
+            success=True,
+            message="Weekly action plan retrieved successfully",
+            data=plan
+        )
+
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve weekly action plan: {str(e)}"
+        )
+
+@router.post(
+    "/goals/{goal_id}/weekly-plan/week/{week_number}",
+    response_model=BaseResponse,
+    summary="Update Weekly Action Status",
+    description="Update the status of a specific week's action"
+)
+async def update_weekly_action(
+    goal_id: str,
+    week_number: int,
+    status_update: WeeklyActionStatus,
+    actual_amount: Optional[Decimal] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update the status of a weekly action.
+
+    Allows marking weeks as completed, in progress, or skipped.
+    """
+    try:
+        user_id = current_user.get("user_id")
+
+        # Update weekly action status
+        action = await savings_service.update_weekly_action_status(
+            goal_id, user_id, week_number, status_update, actual_amount
+        )
+
+        return BaseResponse(
+            success=True,
+            message=f"Week {week_number} status updated successfully",
+            data=action
+        )
+
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update weekly action: {str(e)}"
         )
 
 @router.get(
