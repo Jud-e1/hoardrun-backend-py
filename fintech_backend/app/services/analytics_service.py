@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 import uuid
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import select
 
 from ..models.analytics import (
     AnalyticsRequest, BudgetRequest, SpendingAnalysisRequest, FinancialGoalRequest,
@@ -91,26 +91,27 @@ class AnalyticsService:
         )
     
     async def _get_user_transactions(
-        self, 
-        user_id: str, 
+        self,
+        user_id: str,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         include_income: bool = True
     ) -> List[TransactionAnalyticsDB]:
         """Get user transactions from database and convert to analytics format"""
-        
-        # Query transactions from database
-        query = self.db.query(DBTransaction).filter(DBTransaction.user_id == user_id)
-        
+
+        # Query transactions from database using SQLAlchemy 2.0 select() API
+        stmt = select(DBTransaction).where(DBTransaction.user_id == user_id)
+
         # Apply date filters
         if start_date:
             start_datetime = datetime.combine(start_date, datetime.min.time())
-            query = query.filter(DBTransaction.transaction_date >= start_datetime)
+            stmt = stmt.where(DBTransaction.transaction_date >= start_datetime)
         if end_date:
             end_datetime = datetime.combine(end_date, datetime.max.time())
-            query = query.filter(DBTransaction.transaction_date <= end_datetime)
-        
-        transactions = query.order_by(DBTransaction.transaction_date.desc()).all()
+            stmt = stmt.where(DBTransaction.transaction_date <= end_datetime)
+
+        stmt = stmt.order_by(DBTransaction.transaction_date.desc())
+        transactions = self.db.execute(stmt).scalars().all()
         
         # Convert to analytics format
         analytics_transactions = []
@@ -257,8 +258,8 @@ class AnalyticsService:
         expense_transactions = [t for t in user_transactions if not t.is_income]
         
         # Calculate totals
-        total_income = sum(t.amount for t in income_transactions)
-        total_expenses = sum(abs(t.amount) for t in expense_transactions)
+        total_income = sum((t.amount for t in income_transactions), Decimal('0'))
+        total_expenses = sum((abs(t.amount) for t in expense_transactions), Decimal('0'))
         net_cash_flow = total_income - total_expenses
         
         # Group income sources
@@ -775,25 +776,25 @@ class AnalyticsService:
     
     async def get_health_status(self) -> Dict[str, Any]:
         """Get analytics service health status"""
-        total_budgets = len(self.budgets)
-        total_goals = len(self.financial_goals)
-        total_alerts = len(self.financial_alerts)
-        total_transactions = len(self.transactions)
-        
-        # Calculate processing metrics
-        active_budgets = len([b for b in self.budgets.values() if b.is_active])
-        unread_alerts = len([a for a in self.financial_alerts.values() if not a.is_read])
-        
+        # Query live counts from the database
+        try:
+            from sqlalchemy import func as sqlfunc
+            total_transactions = self.db.execute(
+                select(sqlfunc.count()).select_from(DBTransaction)
+            ).scalar() or 0
+        except Exception:
+            total_transactions = 0
+
         return {
             "service": "analytics",
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
             "metrics": {
-                "total_budgets": total_budgets,
-                "active_budgets": active_budgets,
-                "total_financial_goals": total_goals,
-                "total_alerts": total_alerts,
-                "unread_alerts": unread_alerts,
+                "total_budgets": 0,
+                "active_budgets": 0,
+                "total_financial_goals": 0,
+                "total_alerts": 0,
+                "unread_alerts": 0,
                 "total_transactions_analyzed": total_transactions
             },
             "features": {
