@@ -1,11 +1,9 @@
 from datetime import datetime, date, timedelta
 from typing import List, Optional, Dict, Any
 import uuid
-import random
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_, func, or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy import func
 
 from ..models.analytics import (
     AnalyticsRequest, BudgetRequest, SpendingAnalysisRequest, FinancialGoalRequest,
@@ -15,7 +13,12 @@ from ..models.analytics import (
     BudgetDB, FinancialGoalDB, FinancialAlertDB, TransactionAnalyticsDB,
     AnalyticsPeriod, TransactionCategory, BudgetStatus, TrendDirection, AlertType
 )
-from ..models.transaction import Transaction, TransactionType, TransactionStatus, MerchantCategory
+from ..models.transaction import TransactionType, MerchantCategory
+from ..database.models import (
+    Transaction as DBTransaction,
+    TransactionDirectionEnum,
+    MerchantCategoryEnum,
+)
 from ..core.exceptions import NotFoundError, ValidationError, BusinessLogicError
 
 class AnalyticsService:
@@ -23,29 +26,36 @@ class AnalyticsService:
         """Initialize analytics service with database session"""
         self.db = db_session
     
-    async def _sync_transaction_to_analytics(self, transaction: Transaction) -> TransactionAnalyticsDB:
+    async def _sync_transaction_to_analytics(self, transaction: DBTransaction) -> TransactionAnalyticsDB:
         """Convert a regular transaction to analytics format"""
         
         # Map merchant categories to transaction categories
         category_mapping = {
-            MerchantCategory.GROCERIES: TransactionCategory.GROCERIES,
-            MerchantCategory.RESTAURANTS: TransactionCategory.FOOD_DINING,
-            MerchantCategory.GAS_STATIONS: TransactionCategory.FUEL,
-            MerchantCategory.RETAIL: TransactionCategory.SHOPPING,
-            MerchantCategory.ENTERTAINMENT: TransactionCategory.ENTERTAINMENT,
-            MerchantCategory.TRAVEL: TransactionCategory.TRAVEL,
-            MerchantCategory.HEALTHCARE: TransactionCategory.HEALTHCARE,
-            MerchantCategory.UTILITIES: TransactionCategory.BILLS_UTILITIES,
-            MerchantCategory.EDUCATION: TransactionCategory.EDUCATION,
-            MerchantCategory.AUTOMOTIVE: TransactionCategory.TRANSPORTATION,
-            MerchantCategory.ONLINE_SERVICES: TransactionCategory.OTHER,
-            MerchantCategory.SUBSCRIPTION: TransactionCategory.OTHER,
-            MerchantCategory.TRANSFER: TransactionCategory.TRANSFERS,
-            MerchantCategory.INVESTMENT_TRADE: TransactionCategory.INVESTMENTS,
+            MerchantCategoryEnum.GROCERIES: TransactionCategory.GROCERIES,
+            MerchantCategoryEnum.RESTAURANTS: TransactionCategory.FOOD_DINING,
+            MerchantCategoryEnum.GAS_STATIONS: TransactionCategory.FUEL,
+            MerchantCategoryEnum.RETAIL: TransactionCategory.SHOPPING,
+            MerchantCategoryEnum.ENTERTAINMENT: TransactionCategory.ENTERTAINMENT,
+            MerchantCategoryEnum.TRAVEL: TransactionCategory.TRAVEL,
+            MerchantCategoryEnum.HEALTHCARE: TransactionCategory.HEALTHCARE,
+            MerchantCategoryEnum.UTILITIES: TransactionCategory.BILLS_UTILITIES,
+            MerchantCategoryEnum.EDUCATION: TransactionCategory.EDUCATION,
+            MerchantCategoryEnum.AUTOMOTIVE: TransactionCategory.TRANSPORTATION,
+            MerchantCategoryEnum.ONLINE_SERVICES: TransactionCategory.OTHER,
+            MerchantCategoryEnum.SUBSCRIPTION: TransactionCategory.OTHER,
+            MerchantCategoryEnum.TRANSFER: TransactionCategory.TRANSFERS,
+            MerchantCategoryEnum.INVESTMENT_TRADE: TransactionCategory.INVESTMENTS,
         }
+
+        merchant_category = transaction.merchant_category
+        if isinstance(merchant_category, str):
+            try:
+                merchant_category = MerchantCategoryEnum(merchant_category)
+            except ValueError:
+                merchant_category = MerchantCategoryEnum.OTHER
         
         analytics_category = category_mapping.get(
-            MerchantCategory(transaction.merchant_category) if isinstance(transaction.merchant_category, str) else transaction.merchant_category,
+            merchant_category,
             TransactionCategory.OTHER
         )
         
@@ -53,9 +63,13 @@ class AnalyticsService:
         income_types = [TransactionType.SALARY, TransactionType.DEPOSIT, 
                        TransactionType.INTEREST, TransactionType.DIVIDEND, 
                        TransactionType.REFUND]
-        is_income = (transaction.transaction_type in income_types or 
-                    transaction.direction == "inbound" or 
-                    transaction.amount > 0)
+        transaction_type = transaction.transaction_type.value if hasattr(transaction.transaction_type, "value") else transaction.transaction_type
+        direction = transaction.direction.value if hasattr(transaction.direction, "value") else transaction.direction
+        amount = Decimal(str(transaction.amount))
+        is_income = (
+            transaction_type in [t.value for t in income_types] or
+            direction == TransactionDirectionEnum.INBOUND.value
+        )
         
         # Get transaction date as date object
         trans_date = transaction.transaction_date
@@ -63,17 +77,17 @@ class AnalyticsService:
             trans_date = trans_date.date()
         
         return TransactionAnalyticsDB(
-            id=f"analytics_{transaction.transaction_id}",
+            id=f"analytics_{transaction.id}",
             user_id=transaction.user_id,
-            transaction_id=transaction.transaction_id,
-            amount=abs(transaction.amount),
+            transaction_id=transaction.id,
+            amount=abs(amount),
             category=analytics_category,
             merchant=transaction.merchant_name,
             description=transaction.description,
             transaction_date=trans_date,
             currency=transaction.currency,
             is_income=is_income,
-            created_at=transaction.created_at if hasattr(transaction, 'created_at') else datetime.utcnow()
+            created_at=transaction.created_at or datetime.utcnow()
         )
     
     async def _get_user_transactions(
@@ -86,16 +100,17 @@ class AnalyticsService:
         """Get user transactions from database and convert to analytics format"""
         
         # Query transactions from database
-        query = select(Transaction).where(Transaction.user_id == user_id)
+        query = self.db.query(DBTransaction).filter(DBTransaction.user_id == user_id)
         
         # Apply date filters
         if start_date:
-            query = query.where(Transaction.transaction_date >= start_date)
+            start_datetime = datetime.combine(start_date, datetime.min.time())
+            query = query.filter(DBTransaction.transaction_date >= start_datetime)
         if end_date:
-            query = query.where(Transaction.transaction_date <= end_date)
+            end_datetime = datetime.combine(end_date, datetime.max.time())
+            query = query.filter(DBTransaction.transaction_date <= end_datetime)
         
-        result = await self.db.execute(query)
-        transactions = result.scalars().all()
+        transactions = query.order_by(DBTransaction.transaction_date.desc()).all()
         
         # Convert to analytics format
         analytics_transactions = []
@@ -106,7 +121,7 @@ class AnalyticsService:
                     analytics_transactions.append(analytics_trans)
             except Exception as e:
                 # Log error but continue processing other transactions
-                print(f"Error converting transaction {transaction.transaction_id}: {e}")
+                print(f"Error converting transaction {transaction.id}: {e}")
                 continue
         
         return analytics_transactions
