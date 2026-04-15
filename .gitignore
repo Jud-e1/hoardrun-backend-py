@@ -12,3 +12,5 @@ fintech_backend/.env
 fintech_backend/alembic/_pycache__/
 fintech_backend/alembic/versions/
 
+fintech_backend/.env
+.env
