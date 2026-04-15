@@ -1,5 +1,9 @@
 """
 Mock mobile money service for peer-to-peer transactions and mobile payments.
+
+Shared enums (MobileMoneyProvider, TransactionType, TransactionStatus, Currency)
+now live in mobile_money_base.py and are imported here to avoid redefining them
+across multiple provider files.
 """
 import asyncio
 import random
@@ -7,30 +11,17 @@ import uuid
 from decimal import Decimal
 from datetime import datetime, timedelta, UTC
 from typing import Dict, List, Optional, Any
-from enum import Enum
 
 from ..config.logging import get_logger, log_external_service_call
 from ..core.exceptions import ExternalServiceException
+from .mobile_money_base import (  # noqa: F401 — re-export for backward compat
+    MobileMoneyProvider,
+    TransactionType,
+    TransactionStatus,
+    Currency,
+)
 
 logger = get_logger("mobile_money")
-
-
-class MobileMoneyProvider(str, Enum):
-    """Mobile money provider types."""
-    MPESA = "mpesa"
-    AIRTEL_MONEY = "airtel_money"
-    MTN_MONEY = "mtn_money"
-    TIGO_PESA = "tigo_pesa"
-
-
-class TransactionType(str, Enum):
-    """Mobile money transaction types."""
-    SEND_MONEY = "send_money"
-    RECEIVE_MONEY = "receive_money"
-    WITHDRAW_CASH = "withdraw_cash"
-    DEPOSIT_CASH = "deposit_cash"
-    PAY_BILL = "pay_bill"
-    BUY_AIRTIME = "buy_airtime"
 
 
 class MockMobileMoneyClient:

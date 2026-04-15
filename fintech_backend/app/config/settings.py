@@ -277,6 +277,24 @@ class Settings(BaseSettings):
         description="JWT refresh token expiration time in days"
     )
     
+    # Persona KYC Configuration
+    persona_api_key: str = Field(
+        default="",
+        description="Persona API key (Bearer token)",
+    )
+    persona_template_id: str = Field(
+        default="",
+        description="Persona inquiry template ID (itmpl_…)",
+    )
+    persona_webhook_secret: str = Field(
+        default="",
+        description="Persona webhook signing secret (whs_…)",
+    )
+    persona_environment: str = Field(
+        default="sandbox",
+        description="Persona environment: sandbox or production",
+    )
+
     # API settings
     api_v1_prefix: str = Field(default="/api/v1", description="API v1 prefix")
     docs_url: str = Field(default="/docs", description="Swagger docs URL")

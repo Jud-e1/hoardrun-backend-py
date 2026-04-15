@@ -203,3 +203,140 @@ class NotificationDeliveryDB(BaseModel):
     attempts: int = 0
     created_at: datetime
     updated_at: datetime
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Smart / AI-driven notification models (merged from smart_notifications.py)
+# SmartNotification is a Notification with optional smart_metadata.
+# ─────────────────────────────────────────────────────────────────────────────
+from decimal import Decimal
+
+
+class SmartNotificationType(str, Enum):
+    """Types of smart notifications (decision nudges)."""
+    SURPLUS_DETECTED = "surplus_detected"
+    INVESTMENT_OPPORTUNITY = "investment_opportunity"
+    OVERSPENDING_WARNING = "overspending_warning"
+    GOAL_PROGRESS_NUDGE = "goal_progress_nudge"
+    SAVINGS_OPPORTUNITY = "savings_opportunity"
+    BUDGET_ALERT = "budget_alert"
+    EXPENSE_REDUCTION = "expense_reduction"
+    INCOME_OPTIMIZATION = "income_optimization"
+    DEBT_PAYOFF_SUGGESTION = "debt_payoff_suggestion"
+    EMERGENCY_FUND_REMINDER = "emergency_fund_reminder"
+
+
+class NudgeAction(str, Enum):
+    """Recommended actions for nudges."""
+    SAVE_NOW = "save_now"
+    INVEST_NOW = "invest_now"
+    REDUCE_SPENDING = "reduce_spending"
+    REVIEW_BUDGET = "review_budget"
+    SET_GOAL = "set_goal"
+    INCREASE_CONTRIBUTION = "increase_contribution"
+    PAUSE_SPENDING = "pause_spending"
+    REVIEW_SUBSCRIPTIONS = "review_subscriptions"
+
+
+class SmartMetadata(BaseModel):
+    """Optional smart metadata attached to any notification."""
+    smart_type: SmartNotificationType
+    recommended_action: NudgeAction
+    action_details: Dict[str, Any] = {}
+    amount: Optional[Decimal] = None
+    category: Optional[str] = None
+    goal_id: Optional[str] = None
+    budget_id: Optional[str] = None
+    is_acted_upon: bool = False
+    action_taken_at: Optional[datetime] = None
+    confidence_score: Optional[float] = None  # 0-1
+
+
+class SmartNotificationProfile(NotificationProfile):
+    """A notification enriched with AI-driven smart metadata."""
+    smart_metadata: Optional[SmartMetadata] = None
+
+
+class SmartNotificationSettings(BaseModel):
+    """User settings for smart notifications."""
+    user_id: str
+    enabled: bool = True
+    surplus_notifications: bool = True
+    investment_notifications: bool = True
+    overspending_notifications: bool = True
+    goal_notifications: bool = True
+    savings_notifications: bool = True
+    max_daily_nudges: int = Field(default=5, ge=1, le=20)
+    quiet_hours_start: Optional[str] = None
+    quiet_hours_end: Optional[str] = None
+    min_surplus_amount: Decimal = Field(default=Decimal("50.00"))
+    overspending_threshold_percentage: float = Field(default=80.0, ge=50.0, le=100.0)
+    updated_at: datetime
+
+
+class SmartNotificationCreateRequest(BaseModel):
+    """Request to create a smart notification."""
+    type: SmartNotificationType
+    title: str = Field(..., min_length=1, max_length=200)
+    message: str = Field(..., min_length=1, max_length=500)
+    priority: NotificationPriority = NotificationPriority.MEDIUM
+    recommended_action: NudgeAction
+    action_details: Dict[str, Any] = {}
+    amount: Optional[Decimal] = None
+    category: Optional[str] = None
+    goal_id: Optional[str] = None
+    budget_id: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class SmartNotificationResponse(BaseModel):
+    """Response with smart notifications."""
+    notifications: List[SmartNotificationProfile]
+    total_count: int
+    unread_count: int
+    high_priority_count: int
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Surplus / Overspending / Investment helpers (previously in smart_notifications)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class SurplusDetectionResult(BaseModel):
+    has_surplus: bool
+    surplus_amount: Decimal
+    confidence_score: float
+    recommended_allocation: Dict[str, Decimal]
+    reasoning: str
+
+
+class OverspendingAnalysis(BaseModel):
+    is_overspending: bool
+    category: str
+    amount_over_budget: Decimal
+    percentage_over: float
+    trend: str
+    suggested_reduction: Decimal
+    alternative_actions: List[str]
+
+
+class InvestmentOpportunityProfile(BaseModel):
+    opportunity_id: str
+    type: str
+    recommended_amount: Decimal
+    expected_return: float
+    risk_level: str
+    reasoning: str
+    action_url: Optional[str] = None
+
+
+class GoalProgressNudge(BaseModel):
+    goal_id: str
+    goal_name: str
+    current_progress: float
+    target_amount: Decimal
+    current_amount: Decimal
+    days_remaining: int
+    on_track: bool
+    suggested_action: str
+    suggested_amount: Optional[Decimal] = None

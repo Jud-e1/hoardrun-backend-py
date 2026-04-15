@@ -1,5 +1,7 @@
 """
 MTN MOMO API client for mobile money transactions.
+
+Shared enums and base types are imported from mobile_money_base.py.
 """
 
 import asyncio
@@ -12,6 +14,12 @@ import base64
 
 from ..config.settings import get_settings
 from ..config.logging import get_logger
+from .mobile_money_base import (  # noqa: F401 — available to callers of this module
+    MobileMoneyProvider,
+    TransactionType,
+    TransactionStatus,
+    Currency,
+)
 
 logger = get_logger(__name__)
 settings = get_settings()

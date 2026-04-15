@@ -881,7 +881,7 @@ class KYCService:
             "processed": True,
             "inquiry_id": inquiry_id,
             "user_id": kyc_profile.get("user_id"),
-            "kyc_status": str(new_status),
+            "kyc_status": str(new_status.value),
         }
 
     async def _apply_verification_result(self, verification: Dict[str, Any]) -> None:
@@ -925,11 +925,20 @@ class KYCService:
     ) -> Dict[str, Any]:
         """Return a plausible mock response when Persona is not configured."""
         inquiry_id = existing_inquiry_id or f"inq_mock_{uuid.uuid4().hex[:12]}"
+
+        # Persist the inquiry_id on the profile so subsequent calls resume it
+        if not existing_inquiry_id:
+            kyc_profile = self._find_kyc_profile(user_id)
+            if kyc_profile:
+                kyc_profile["persona_inquiry_id"] = inquiry_id
+                kyc_profile["overall_status"] = KYCStatus.IN_PROGRESS
+                self.repository.update("kyc_profiles", kyc_profile["id"], kyc_profile)
+
         return {
             "inquiry_id": inquiry_id,
             "session_token": f"mock_session_{uuid.uuid4().hex}",
             "status": "pending",
-            "kyc_status": KYCStatus.IN_PROGRESS,
+            "kyc_status": KYCStatus.IN_PROGRESS.value,
             "mock": True,
         }
 
@@ -1132,5 +1141,3 @@ class KYCService:
             "metadata": {},
         }
         self.repository.data.setdefault("kyc_documents", {})["doc_001"] = mock_document
-
-        

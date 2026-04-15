@@ -328,3 +328,113 @@ async def test_plaid_connection(
         )
     
     
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Plaid Transfer routes (merged from plaid_transfers.py)
+# Previously exposed as /plaid/transfers; now co-located with other Plaid routes.
+# ─────────────────────────────────────────────────────────────────────────────
+from typing import Optional  # noqa: E402 (already imported above, harmless)
+from fastapi import Query  # noqa: E402
+from pydantic import BaseModel, Field  # noqa: E402
+from decimal import Decimal  # noqa: E402
+
+from ...services.plaid_transfer_service import get_plaid_transfer_service, PlaidTransferService  # noqa: E402
+from ...models.transfer import TransferQuote, MoneyTransfer  # noqa: E402
+
+
+class PlaidTransferQuoteRequest(BaseModel):
+    """Request model for creating a transfer quote using Plaid account."""
+    source_account_id: str = Field(..., description="Plaid account ID")
+    beneficiary_id: str = Field(..., description="Beneficiary ID")
+    amount: Decimal = Field(..., gt=0, description="Transfer amount")
+    currency: str = Field(default="USD", description="Currency code")
+
+
+class PlaidTransferInitiateRequest(BaseModel):
+    """Request model for initiating a Plaid transfer."""
+    quote_id: str = Field(..., description="Transfer quote ID")
+    purpose: str = Field(..., min_length=1, max_length=200)
+    reference: Optional[str] = Field(None, max_length=50)
+    recipient_message: Optional[str] = Field(None, max_length=200)
+
+
+@router.post("/transfers/quote", response_model=dict, tags=["plaid-transfers"])
+async def create_plaid_transfer_quote(
+    request: PlaidTransferQuoteRequest,
+    user_id: str = Depends(get_current_user_id),
+    service: PlaidTransferService = Depends(get_plaid_transfer_service)
+):
+    """Create a transfer quote using a Plaid-connected account."""
+    try:
+        logger.info(f"Creating Plaid transfer quote for user {user_id}")
+        quote = await service.create_transfer_quote(
+            user_id=user_id,
+            source_account_id=request.source_account_id,
+            beneficiary_id=request.beneficiary_id,
+            amount=request.amount,
+            currency=request.currency
+        )
+        return {"success": True, "message": "Transfer quote created successfully",
+                "data": {"quote": quote.dict()}}
+    except Exception as e:
+        logger.error(f"Failed to create transfer quote: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/transfers/initiate", response_model=dict, tags=["plaid-transfers"])
+async def initiate_plaid_transfer(
+    request: PlaidTransferInitiateRequest,
+    user_id: str = Depends(get_current_user_id),
+    service: PlaidTransferService = Depends(get_plaid_transfer_service)
+):
+    """Initiate a money transfer using a Plaid-connected account."""
+    try:
+        logger.info(f"Initiating Plaid transfer for user {user_id}")
+        transfer = await service.initiate_plaid_transfer(
+            user_id=user_id,
+            quote_id=request.quote_id,
+            purpose=request.purpose,
+            reference=request.reference,
+            recipient_message=request.recipient_message
+        )
+        return {"success": True, "message": "Transfer initiated successfully",
+                "data": {"transfer": transfer.dict()}}
+    except Exception as e:
+        logger.error(f"Failed to initiate transfer: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/transfers/{transfer_id}/status", response_model=dict, tags=["plaid-transfers"])
+async def get_plaid_transfer_status(
+    transfer_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: PlaidTransferService = Depends(get_plaid_transfer_service)
+):
+    """Get the status of a Plaid transfer."""
+    try:
+        status_info = await service.get_transfer_status(user_id=user_id, transfer_id=transfer_id)
+        return {"success": True, "message": "Transfer status retrieved", "data": status_info}
+    except Exception as e:
+        logger.error(f"Failed to get transfer status: {e}")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get("/transfers/history", response_model=dict, tags=["plaid-transfers"])
+async def get_plaid_transfer_history(
+    user_id: str = Depends(get_current_user_id),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    service: PlaidTransferService = Depends(get_plaid_transfer_service)
+):
+    """Get transfer history for Plaid-based transfers."""
+    try:
+        transfers = await service.repo.get_user_transfers(user_id)
+        plaid_transfers = [t for t in transfers if t.source_account_id and t.source_account_id.startswith('plaid_')]
+        total = len(plaid_transfers)
+        paginated = plaid_transfers[offset:offset + limit]
+        return {"success": True, "message": "Transfer history retrieved",
+                "data": {"transfers": [t.dict() for t in paginated],
+                         "total_count": total, "limit": limit, "offset": offset}}
+    except Exception as e:
+        logger.error(f"Failed to get transfer history: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

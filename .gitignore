@@ -1,2 +1,14 @@
 fintech_backen/.env
 .env
+*.zip
+*.log
+myenv
+__pycache__/
+venv
+*.yaml
+fintech_backend/__pycache__/
+fintech_backend/venv/
+fintech_backend/.env
+fintech_backend/alembic/_pycache__/
+fintech_backend/alembic/versions/
+
