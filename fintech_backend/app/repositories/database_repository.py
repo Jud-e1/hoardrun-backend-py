@@ -254,6 +254,28 @@ class CardRepository:
             self.db.commit()
             self.db.refresh(card)
         return card
+    
+    def get_card_by_masked_number(self, card_number_masked: str) -> Optional[Card]:
+        """Get card by its masked number."""
+        return self.db.query(Card).filter(Card.card_number_masked == card_number_masked).first()
+    
+    def update_cardholder_name(self, card_id: str, cardholder_name: str) -> Optional[Card]:
+        """Update the name printed on a card."""
+        card = self.get_card_by_id(card_id)
+        if card:
+            card.cardholder_name = cardholder_name
+            self.db.commit()
+            self.db.refresh(card)
+        return card
+    
+    def delete_card(self, card_id: str) -> bool:
+        """Delete a card."""
+        card = self.get_card_by_id(card_id)
+        if not card:
+            return False
+        self.db.delete(card)
+        self.db.commit()
+        return True
 
 
 class InvestmentRepository:

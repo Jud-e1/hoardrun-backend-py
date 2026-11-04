@@ -5,7 +5,7 @@ Now uses Plaid as the primary source for transaction data.
 
 import uuid
 import time
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal
 from typing import List, Optional, Dict, Any
 from difflib import SequenceMatcher
@@ -25,6 +25,12 @@ from ..data.repository import get_repository_manager
 from ..utils.validators import validate_user_exists
 from ..config.logging import get_logger
 from .plaid_service import get_plaid_service
+
+
+def utc_today() -> date:
+    """Transactions are stored in UTC, so default date windows use the UTC date too."""
+    return datetime.now(timezone.utc).date()
+
 
 logger = get_logger(__name__)
 
@@ -67,8 +73,8 @@ class TransactionService:
             connection = await self.repo.get_plaid_connection(account.connection_id)
             
             # Get transactions for date range
-            start_date = request.start_date or (date.today() - timedelta(days=90))
-            end_date = request.end_date or date.today()
+            start_date = request.start_date or (utc_today() - timedelta(days=90))
+            end_date = request.end_date or utc_today()
             
             plaid_transactions = await self.repo.get_plaid_transactions_by_date_range(
                 connection.connection_id,
@@ -163,8 +169,8 @@ class TransactionService:
             connection = await self.repo.get_plaid_connection(account.connection_id)
             
             # Get recent transactions (last 90 days)
-            start_date = date.today() - timedelta(days=90)
-            end_date = date.today()
+            start_date = utc_today() - timedelta(days=90)
+            end_date = utc_today()
             
             plaid_transactions = await self.repo.get_plaid_transactions_by_date_range(
                 connection.connection_id,
@@ -271,7 +277,7 @@ class TransactionService:
             raise NotFoundError(f"User {user_id} not found")
         
         # Calculate period
-        end_date = date.today()
+        end_date = utc_today()
         start_date = end_date - timedelta(days=days)
         
         plaid_accounts = await self.plaid_service.get_user_accounts(user_id)
@@ -407,8 +413,8 @@ class TransactionService:
         """Calculate summary statistics for Plaid transactions."""
         if not transactions:
             return TransactionSummary(
-                period_start=start_date or date.today(),
-                period_end=end_date or date.today(),
+                period_start=start_date or utc_today(),
+                period_end=end_date or utc_today(),
                 total_transactions=0,
                 total_amount=Decimal("0"),
                 total_credits=Decimal("0"),

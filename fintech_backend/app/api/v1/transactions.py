@@ -2,7 +2,7 @@
 Transaction management API endpoints - Plaid-based implementation.
 """
 
-from fastapi import APIRouter, HTTPException, Query, Path
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from typing import Optional
 from datetime import datetime
 
@@ -12,6 +12,7 @@ from ...models.transaction import (
     TransactionListResponse, TransactionResponse
 )
 from ...services.transaction_service import get_transaction_service
+from ...core.auth import get_current_user_id
 from ...core.exceptions import (
     ValidationError, NotFoundError, BusinessLogicError, UnauthorizedError
 )
@@ -23,9 +24,9 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
 
-@router.get("/", response_model=TransactionListResponse)
+@router.get("/", response_model=dict)
 async def list_transactions(
-    user_id: str = Query(..., description="User ID to list transactions for"),
+    user_id: str = Depends(get_current_user_id),
     account_id: Optional[str] = Query(None, description="Filter by Plaid account ID"),
     start_date: Optional[str] = Query(None, description="Filter from date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="Filter to date (YYYY-MM-DD)"),
@@ -95,10 +96,103 @@ async def list_transactions(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/{transaction_id}", response_model=TransactionResponse)
+@router.get("/analytics", response_model=dict)
+async def get_transaction_analytics(
+    user_id: str = Depends(get_current_user_id),
+    account_id: Optional[str] = Query(None, description="Filter by Plaid account ID"),
+    days: int = Query(90, ge=1, le=365, description="Analysis period in days")
+):
+    """
+    Get comprehensive transaction analytics from Plaid data.
+    
+    Returns detailed analytics including spending patterns, category breakdowns,
+    and trends calculated from Plaid transaction data.
+    """
+    try:
+        logger.info(f"API: Getting Plaid transaction analytics for user {user_id}")
+        
+        transaction_service = get_transaction_service()
+        result = await transaction_service.get_transaction_analytics(user_id, account_id, days)
+        
+        return success_response(
+            data=result,
+            message="Plaid transaction analytics retrieved successfully"
+        )
+        
+    except NotFoundError as e:
+        logger.error(f"User or account not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting transaction analytics: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/recent", response_model=dict)
+async def get_recent_transactions(
+    user_id: str = Depends(get_current_user_id),
+    limit: int = Query(10, ge=1, le=100, description="Number of recent transactions"),
+    account_id: Optional[str] = Query(None, description="Filter by Plaid account ID")
+):
+    """
+    Get most recent Plaid transactions for quick access.
+    
+    Returns the most recent Plaid transactions ordered by date
+    for dashboard or quick reference purposes.
+    """
+    try:
+        logger.info(f"API: Getting recent Plaid transactions for user {user_id}")
+        
+        transaction_service = get_transaction_service()
+        transactions = await transaction_service.get_recent_transactions(
+            user_id, limit, account_id
+        )
+        
+        result = {
+            "transactions": transactions,
+            "total_count": len(transactions),
+            "has_more": False
+        }
+        
+        return success_response(
+            data=result,
+            message=f"Retrieved {len(transactions)} recent Plaid transactions"
+        )
+        
+    except NotFoundError as e:
+        logger.error(f"User not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting recent transactions: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/health", response_model=dict)
+async def transactions_health():
+    """
+    Health check endpoint for Plaid transaction service.
+    
+    Returns the operational status of the Plaid transaction management service.
+    """
+    try:
+        return success_response(
+            data={
+                "service": "plaid_transaction_service",
+                "status": "healthy",
+                "version": "2.0.0",
+                "provider": "Plaid"
+            },
+            message="Plaid transaction service is healthy"
+        )
+        
+    except Exception as e:
+        logger.error(f"Transaction service health check failed: {e}")
+        raise HTTPException(status_code=503, detail="Service unavailable")
+
+
+@router.get("/{transaction_id}", response_model=dict)
 async def get_transaction(
     transaction_id: str = Path(..., description="Plaid Transaction ID"),
-    user_id: str = Query(..., description="User ID")
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     Get detailed information for a specific Plaid transaction.
@@ -130,7 +224,7 @@ async def get_transaction(
 
 @router.post("/search", response_model=dict)
 async def search_transactions(
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     request: TransactionSearchRequest = ...
 ):
     """
@@ -158,10 +252,10 @@ async def search_transactions(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.patch("/{transaction_id}", response_model=TransactionResponse)
+@router.patch("/{transaction_id}", response_model=dict)
 async def update_transaction(
     transaction_id: str = Path(..., description="Plaid Transaction ID"),
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     request: TransactionUpdateRequest = ...
 ):
     """
@@ -195,10 +289,10 @@ async def update_transaction(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/account/{account_id}", response_model=TransactionListResponse)
+@router.get("/account/{account_id}", response_model=dict)
 async def get_account_transactions(
     account_id: str = Path(..., description="Plaid Account ID"),
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     limit: int = Query(50, ge=1, le=1000, description="Number of results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip")
 ):
@@ -237,79 +331,9 @@ async def get_account_transactions(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/analytics", response_model=dict)
-async def get_transaction_analytics(
-    user_id: str = Query(..., description="User ID"),
-    account_id: Optional[str] = Query(None, description="Filter by Plaid account ID"),
-    days: int = Query(90, ge=1, le=365, description="Analysis period in days")
-):
-    """
-    Get comprehensive transaction analytics from Plaid data.
-    
-    Returns detailed analytics including spending patterns, category breakdowns,
-    and trends calculated from Plaid transaction data.
-    """
-    try:
-        logger.info(f"API: Getting Plaid transaction analytics for user {user_id}")
-        
-        transaction_service = get_transaction_service()
-        result = await transaction_service.get_transaction_analytics(user_id, account_id, days)
-        
-        return success_response(
-            data=result,
-            message="Plaid transaction analytics retrieved successfully"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"User or account not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error getting transaction analytics: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.get("/recent", response_model=TransactionListResponse)
-async def get_recent_transactions(
-    user_id: str = Query(..., description="User ID"),
-    limit: int = Query(10, ge=1, le=100, description="Number of recent transactions"),
-    account_id: Optional[str] = Query(None, description="Filter by Plaid account ID")
-):
-    """
-    Get most recent Plaid transactions for quick access.
-    
-    Returns the most recent Plaid transactions ordered by date
-    for dashboard or quick reference purposes.
-    """
-    try:
-        logger.info(f"API: Getting recent Plaid transactions for user {user_id}")
-        
-        transaction_service = get_transaction_service()
-        transactions = await transaction_service.get_recent_transactions(
-            user_id, limit, account_id
-        )
-        
-        result = {
-            "transactions": transactions,
-            "total_count": len(transactions),
-            "has_more": False
-        }
-        
-        return success_response(
-            data=result,
-            message=f"Retrieved {len(transactions)} recent Plaid transactions"
-        )
-        
-    except NotFoundError as e:
-        logger.error(f"User not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error getting recent transactions: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
 @router.post("/export", response_model=dict)
 async def export_transactions(
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     request: TransactionExportRequest = ...
 ):
     """
@@ -335,26 +359,3 @@ async def export_transactions(
     except Exception as e:
         logger.error(f"Error exporting transactions: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.get("/health", response_model=dict)
-async def transactions_health():
-    """
-    Health check endpoint for Plaid transaction service.
-    
-    Returns the operational status of the Plaid transaction management service.
-    """
-    try:
-        return success_response(
-            data={
-                "service": "plaid_transaction_service",
-                "status": "healthy",
-                "version": "2.0.0",
-                "provider": "Plaid"
-            },
-            message="Plaid transaction service is healthy"
-        )
-        
-    except Exception as e:
-        logger.error(f"Transaction service health check failed: {e}")
-        raise HTTPException(status_code=503, detail="Service unavailable")

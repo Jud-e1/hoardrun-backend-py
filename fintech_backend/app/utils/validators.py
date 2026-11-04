@@ -326,9 +326,9 @@ def validate_user_id(user_id: str) -> str:
     if len(user_id) < 3 or len(user_id) > 50:
         raise ValidationException("User ID must be 3-50 characters long")
     
-    # Check format (alphanumeric with underscores)
-    if not re.match(r'^[a-zA-Z0-9_]+$', user_id):
-        raise ValidationException("User ID must contain only letters, numbers, and underscores")
+    # Check format (user IDs are UUIDs, so hyphens are allowed)
+    if not re.match(r'^[a-zA-Z0-9_-]+$', user_id):
+        raise ValidationException("User ID must contain only letters, numbers, hyphens, and underscores")
     
     return user_id
 
@@ -534,7 +534,19 @@ def sanitize_input(input_str: str, max_length: int = 255, allow_html: bool = Fal
     
     return sanitized
 async def validate_user_exists(user_id: str, repo) -> bool:
-    """Validate that a user exists in the repository."""
+    """Validate that a user exists. Accounts live in the database; the repository only holds fixtures."""
+    from ..database.config import SessionLocal
+    from ..database.models import User
+
+    db = SessionLocal()
+    try:
+        if db.query(User.id).filter(User.id == user_id).first():
+            return True
+    except Exception:
+        pass
+    finally:
+        db.close()
+
     try:
         user = await repo.get_user_by_id(user_id)
         return user is not None

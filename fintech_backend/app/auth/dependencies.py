@@ -30,7 +30,23 @@ async def get_current_user_id(
         HTTPException: If token is invalid or expired
     """
     token = credentials.credentials
-    return JWTHandler.get_user_id_from_token(token)
+    user_id = JWTHandler.get_user_id_from_token(token)
+    # A closed account's sign-ins stop working at once, not when their tokens expire
+    if account_is_closed(user_id):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="This account is closed.")
+    return user_id
+
+
+def account_is_closed(user_id: str) -> bool:
+    from ..database.config import SessionLocal
+    from ..database.models import User
+    try:
+        with SessionLocal() as db:
+            row = db.query(User.status).filter(User.id == user_id).first()
+    except Exception:
+        # If the database can't be reached the request fails on its own; don't mask that here
+        return False
+    return row is not None and row[0] == "deactivated"
 
 
 async def get_current_user(

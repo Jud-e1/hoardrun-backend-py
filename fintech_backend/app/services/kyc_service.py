@@ -201,7 +201,7 @@ _VERIFICATION_STATUS_MAP: Dict[str, DocumentStatus] = {
     "passed": DocumentStatus.VERIFIED,
     "failed": DocumentStatus.REJECTED,
     "initiated": DocumentStatus.UPLOADED,
-    "submitted": DocumentStatus.UNDER_REVIEW,
+    "submitted": DocumentStatus.PROCESSING,
     "requires_retry": DocumentStatus.REJECTED,
     "confirmed": DocumentStatus.VERIFIED,
     "not_applicable": DocumentStatus.UPLOADED,

@@ -22,7 +22,7 @@ from ..models.collective_capital import (
 )
 from ..core.exceptions import (
     ValidationException, BusinessRuleViolationException, 
-    AccountNotFoundException, FintechException
+    AccountNotFoundException, FintechException, AuthorizationException
 )
 from ..config.logging import get_logger
 
@@ -250,7 +250,7 @@ class CollectiveCapitalService:
         if circle.is_private:
             user_is_member = any(member.user_id == user_id for member in circle.members)
             if not user_is_member:
-                raise FintechException("Access denied to private circle")
+                raise AuthorizationException("Access denied to private circle")
         
         return circle
 
@@ -350,7 +350,7 @@ class CollectiveCapitalService:
         # Check if user is creator or admin
         user_member = next((m for m in circle.members if m.user_id == user_id), None)
         if not user_member or user_member.role not in [MemberRole.CREATOR, MemberRole.ADMIN]:
-            raise FintechException("Only circle creators and admins can update settings")
+            raise AuthorizationException("Only circle creators and admins can update settings")
         
         # Update fields
         if request.name is not None:
@@ -485,7 +485,7 @@ class CollectiveCapitalService:
         # Check if user is a member
         user_member = next((m for m in circle.members if m.user_id == user_id), None)
         if not user_member:
-            raise FintechException("Only circle members can create proposals")
+            raise AuthorizationException("Only circle members can create proposals")
         
         # Generate proposal ID and create asset details
         proposal_id = f"proposal_{uuid.uuid4().hex[:8]}"
@@ -577,7 +577,7 @@ class CollectiveCapitalService:
         # Check if user is a member
         user_member = next((m for m in circle.members if m.user_id == user_id), None)
         if not user_member:
-            raise FintechException("Only circle members can vote")
+            raise AuthorizationException("Only circle members can vote")
         
         # Check if proposal is still open for voting
         if proposal.status != ProposalStatus.PENDING:
@@ -651,7 +651,7 @@ class CollectiveCapitalService:
         # Check if user is a member
         user_member = next((m for m in circle.members if m.user_id == user_id), None)
         if not user_member:
-            raise FintechException("Only circle members can view AI recommendations")
+            raise AuthorizationException("Only circle members can view AI recommendations")
         
         return circle.ai_recommendations
 
@@ -674,7 +674,7 @@ class CollectiveCapitalService:
         if circle.is_private:
             user_is_member = any(member.user_id == user_id for member in circle.members)
             if not user_is_member:
-                raise FintechException("Access denied to private circle")
+                raise AuthorizationException("Access denied to private circle")
         
         # Sort activities by date (newest first) and apply pagination
         activities = sorted(circle.activities, key=lambda a: a.created_at, reverse=True)

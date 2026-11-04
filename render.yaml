@@ -1,68 +1,106 @@
-# Temporarily disable render.yaml to force Procfile usage
-# services:
-#   - type: web
-#     name: hoardrun-backend
-#     env: python
-#     buildCommand: pip install -r requirements.txt
-#     startCommand: gunicorn -w 4 -k uvicorn.workers.UvicornWorker app:application --bind 0.0.0.0:$PORT
+# Render blueprint for the Hoardrun API (docs/hosting.md).
+#
+# Secrets are never written here: every `sync: false` value is entered once in the Render
+# dashboard (or the blueprint's first-sync form) and stays there.
+services:
+  - type: web
+    name: hoardrun-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Near US customers and a US database
+    region: virginia
+    # Always on: Stripe waits under 2 seconds for card approvals, so the API can't sleep
+    plan: standard
+    numInstances: 1
     healthCheckPath: /health
+    # Before new code takes traffic; if it fails, the old version keeps running
+    preDeployCommand: python -m app.database.migrate upgrade
+    autoDeploy: true
     envVars:
       - key: ENVIRONMENT
         value: production
       - key: DEBUG
-        value: false
-      - key: DATABASE_SSL_MODE
-        value: require
-      - key: HOST
-        value: 0.0.0.0
-      - key: PORT
-        fromService:
-          type: web
-          name: hoardrun-backend
-          property: port
-      - key: DATABASE_URL
-        value: postgresql://hoardrun_user:ILG8KrjozdCHMtAw3NgwUzW39HZVGIab@dpg-d2v7m1ogjchc73auh69g-a.oregon-postgres.render.com/hoardrun?sslmode=require
-      - key: SECRET_KEY
-        generateValue: true
-      - key: APP_NAME
-        value: Hoardrun Backend API
-      - key: APP_VERSION
-        value: 1.0.0
+        value: "false"
       - key: LOG_LEVEL
         value: INFO
       - key: LOG_FORMAT
         value: json
-      - key: CORS_ORIGINS
-        value: '["https://hoardrun.vercel.app", "https://hoardruns.vercel.app", "http://localhost:3000", "http://127.0.0.1:3000"]'
-      - key: REDIS_URL
-        value: redis://localhost:6379/0
-      - key: ALGORITHM
-        value: HS256
-      - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: 30
-      - key: DEFAULT_CURRENCY
-        value: USD
-      - key: SUPPORTED_CURRENCIES
-        value: '["USD", "EUR", "GBP", "KES", "UGX", "TZS"]'
-      - key: MAX_TRANSFER_AMOUNT
-        value: 100000.0
-      - key: MIN_TRANSFER_AMOUNT
-        value: 1.0
-      - key: RATE_LIMIT_REQUESTS
-        value: 100
-      - key: RATE_LIMIT_WINDOW
-        value: 60
-      - key: CACHE_TTL
-        value: 300
-      - key: REQUEST_TIMEOUT
-        value: 30
-      - key: MAX_REQUEST_SIZE
-        value: 1048576
-      - key: DATABASE_CONNECT_TIMEOUT
-        value: 10
-      - key: DATABASE_POOL_TIMEOUT
-        value: 30
-      - key: STARTUP_TIMEOUT
-        value: 120
+      - key: WEB_CONCURRENCY
+        value: "2"
 
-# Using existing PostgreSQL database - no need to create new one
+      # Database (docs/production-database.md): the app user, and the owner for migrations
+      - key: DATABASE_URL
+        sync: false
+      - key: MIGRATION_DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL_MODE
+        value: require
+
+      # Keys made once and kept: losing DATA_ENCRYPTION_KEY loses the encrypted columns
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATA_ENCRYPTION_KEY
+        sync: false
+
+      # Where the web app lives
+      - key: APP_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
+      # Providers
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_ISSUING_WEBHOOK_SECRET
+        sync: false
+      - key: PLAID_CLIENT_ID
+        sync: false
+      - key: PLAID_SECRET
+        sync: false
+      # sandbox until Plaid approves production access, then production
+      - key: PLAID_ENV
+        value: sandbox
+      - key: PLAID_WEBHOOK_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: APPLE_SERVICES_ID
+        sync: false
+      - key: APPLE_TEAM_ID
+        sync: false
+      - key: APPLE_KEY_ID
+        sync: false
+      - key: APPLE_PRIVATE_KEY
+        sync: false
+      - key: API_URL
+        sync: false
+      - key: PERSONA_API_KEY
+        sync: false
+      - key: PERSONA_TEMPLATE_ID
+        sync: false
+      - key: PERSONA_WEBHOOK_SECRET
+        sync: false
+      - key: ALPACA_BROKER_KEY
+        sync: false
+      - key: ALPACA_BROKER_SECRET
+        sync: false
+      - key: ALPACA_FIRM_ACCOUNT_ID
+        sync: false
+      # sandbox until the Alpaca agreement is signed, then live
+      - key: ALPACA_ENV
+        value: sandbox
+      - key: ANTHROPIC_API_KEY
+        sync: false

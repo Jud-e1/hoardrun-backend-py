@@ -13,6 +13,7 @@ from plaid.model.transfer_network import TransferNetwork
 from plaid.model.transfer_user_in_request import TransferUserInRequest
 from plaid.model.ach_class import ACHClass
 import plaid
+from plaid.api import plaid_api
 
 from ..config.logging import get_logger
 
@@ -24,7 +25,7 @@ class PlaidClient:
 
     def __init__(self):
         configuration = plaid.Configuration(
-            host=plaid.Environment.Sandbox,  # Use Production for live
+            host=plaid.Environment.Production if os.getenv('PLAID_ENV') == 'production' else plaid.Environment.Sandbox,
             api_key={
                 'clientId': os.getenv('PLAID_CLIENT_ID'),
                 'secret': os.getenv('PLAID_SECRET'),
@@ -32,7 +33,12 @@ class PlaidClient:
         )
         
         api_client = plaid.ApiClient(configuration)
-        self.client = plaid.PlaidApi(api_client)
+        self.client = plaid_api.PlaidApi(api_client)
+
+    @property
+    def configured(self) -> bool:
+        """Whether Plaid credentials have been provided."""
+        return bool(os.getenv('PLAID_CLIENT_ID') and os.getenv('PLAID_SECRET'))
 
     async def create_transfer(self, transfer_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -54,7 +60,7 @@ class PlaidClient:
             # First, create a transfer authorization
             authorization = await self._create_transfer_authorization(transfer_data)
             
-            if not authorization or authorization.get('decision') != 'approved':
+            if authorization['authorization'].get('decision') != 'approved':
                 raise Exception(f"Transfer authorization failed: {authorization}")
             
             # Create the actual transfer
@@ -182,7 +188,7 @@ class PlaidClient:
     async def create_link_token(
         self,
         user_id: str,
-        client_name: str = "HoardRun",
+        client_name: str = "Hoardrun",
         products: Optional[list] = None,
         country_codes: Optional[list] = None,
         language: str = "en",
@@ -242,7 +248,7 @@ class PlaidClient:
     async def create_debit_card_link_token(
         self,
         user_id: str,
-        client_name: str = "HoardRun"
+        client_name: str = "Hoardrun"
     ) -> Dict[str, Any]:
         """
         Create a Plaid Link token specifically for debit card verification.
@@ -458,6 +464,38 @@ class PlaidClient:
         except plaid.ApiException as e:
             logger.error(f"Failed to get transactions: {e}")
             raise Exception(f"Failed to get transactions: {str(e)}")
+
+    async def get_item(self, access_token: str) -> Dict[str, Any]:
+        """Get the Plaid item (the bank login) behind an access token."""
+        try:
+            from plaid.model.item_get_request import ItemGetRequest
+
+            response = self.client.item_get(ItemGetRequest(access_token=access_token))
+            return {
+                'item_id': response['item']['item_id'],
+                'institution_id': response['item'].get('institution_id'),
+            }
+        except plaid.ApiException as e:
+            logger.error(f"Failed to get item: {e}")
+            raise Exception(f"Failed to get item: {str(e)}")
+
+    async def get_institution(self, institution_id: str, country_codes: Optional[list] = None) -> Dict[str, Any]:
+        """Get a bank's name and details."""
+        try:
+            from plaid.model.country_code import CountryCode
+            from plaid.model.institutions_get_by_id_request import InstitutionsGetByIdRequest
+
+            response = self.client.institutions_get_by_id(InstitutionsGetByIdRequest(
+                institution_id=institution_id,
+                country_codes=[CountryCode(code) for code in (country_codes or ['US'])],
+            ))
+            return {
+                'institution_id': response['institution']['institution_id'],
+                'name': response['institution']['name'],
+            }
+        except plaid.ApiException as e:
+            logger.error(f"Failed to get institution: {e}")
+            raise Exception(f"Failed to get institution: {str(e)}")
 
     async def remove_item(self, access_token: str) -> Dict[str, Any]:
         """

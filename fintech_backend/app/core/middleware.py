@@ -151,6 +151,16 @@ class InMemoryRateLimiter:
         return False, retry_after
 
 
+# Routes where guessing is the risk: 20 tries per address every 10 minutes
+SENSITIVE_PATHS = (
+    "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/verify-email", "/api/v1/auth/resend-verification",
+    "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password", "/api/v1/auth/google/", "/api/v1/auth/apple/", "/api/v1/auth/change-password",
+    "/api/v1/admin/auth/login", "/api/v1/account/close",
+)
+SENSITIVE_LIMIT = 20
+SENSITIVE_WINDOW = 600
+
+
 class CustomRateLimitMiddleware(BaseHTTPMiddleware):
     """Custom rate limiting middleware with in-memory storage."""
     
@@ -170,6 +180,17 @@ class CustomRateLimitMiddleware(BaseHTTPMiddleware):
         client_ip = get_remote_address(request)
         user_id = getattr(request.state, 'user_id', None)
         rate_limit_key = user_id or client_ip
+
+        # Sign-in, codes and password resets get a much tighter limit per address, against guessing
+        if request.method == "POST" and request.url.path.startswith(SENSITIVE_PATHS):
+            allowed, retry_after = self.limiter.is_allowed(key=f"auth:{client_ip}", limit=SENSITIVE_LIMIT, window_seconds=SENSITIVE_WINDOW)
+            if not allowed:
+                logger.warning("Auth rate limit exceeded", extra={"client_ip": client_ip, "path": request.url.path})
+                return JSONResponse(
+                    status_code=429,
+                    content={"message": "Too many attempts. Wait a few minutes and try again.", "error_code": "RATE_LIMIT_EXCEEDED"},
+                    headers={"Retry-After": str(retry_after)},
+                )
         
         # Check rate limit
         is_allowed, remaining_or_retry_after = self.limiter.is_allowed(

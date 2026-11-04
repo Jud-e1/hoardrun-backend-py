@@ -1,144 +1,112 @@
-from typing import List, Optional
+import calendar
+import secrets
+from datetime import date, datetime
+from typing import List
+
 from sqlalchemy.orm import Session
-from ..database.config import get_db
+
 from ..repositories.database_repository import CardRepository, AccountRepository
-from ..models.card import CardResponse, CardCreateRequest, CardUpdateRequest
+from ..models.flat_card import Card, CardCreateRequest, CardUpdateRequest
 from ..database.models import Card as DBCard, CardTypeEnum, CardStatusEnum
 from ..core.exceptions import CardNotFoundException, ValidationException
-import uuid
-from datetime import datetime, timedelta
-import random
-import string
+
+CARD_VALIDITY_YEARS = 3
+MASKED_NUMBER_ATTEMPTS = 20
+
 
 class DatabaseCardService:
-    def __init__(self):
-        self.card_repository = CardRepository()
-        self.account_repository = AccountRepository()
-    
-    def _generate_card_number(self) -> str:
-        """Generate a random 16-digit card number"""
-        return ''.join([str(random.randint(0, 9)) for _ in range(16)])
-    
-    def _generate_cvv(self) -> str:
-        """Generate a random 3-digit CVV"""
-        return ''.join([str(random.randint(0, 9)) for _ in range(3)])
-    
-    def _generate_pin(self) -> str:
-        """Generate a random 4-digit PIN"""
-        return ''.join([str(random.randint(0, 9)) for _ in range(4)])
+    """Card operations backed by the database. Only masked numbers are ever stored."""
 
-    def get_user_cards(self, user_id: str, db: Session) -> List[CardResponse]:
-        """Get all cards for a user"""
-        cards = self.card_repository.get_cards_by_user_id(db, user_id)
-        return [self._convert_to_response(card) for card in cards]
-    
-    def get_card_by_id(self, card_id: str, user_id: str, db: Session) -> CardResponse:
-        """Get a specific card by ID"""
-        card = self.card_repository.get_by_id(db, card_id)
+    def _generate_masked_number(self, repository: CardRepository) -> str:
+        """Generate a masked card number that is not in use yet."""
+        for _ in range(MASKED_NUMBER_ATTEMPTS):
+            masked = f"****{secrets.randbelow(10000):04d}"
+            if not repository.get_card_by_masked_number(masked):
+                return masked
+        raise ValidationException("Could not generate a unique card number")
+
+    def _get_owned_card(self, repository: CardRepository, card_id: str, user_id: str) -> DBCard:
+        """Get a card, reporting other users' cards as not found."""
+        card = repository.get_card_by_id(card_id)
         if not card or card.user_id != user_id:
             raise CardNotFoundException(card_id)
-        return self._convert_to_response(card)
-    
-    def create_card(self, user_id: str, card_data: CardCreateRequest, db: Session) -> CardResponse:
+        return card
+
+    def get_user_cards(self, user_id: str, db: Session) -> List[Card]:
+        """Get all cards for a user"""
+        cards = CardRepository(db).get_cards_by_user_id(user_id)
+        return [self._convert_to_response(card) for card in cards]
+
+    def get_card_by_id(self, card_id: str, user_id: str, db: Session) -> Card:
+        """Get a specific card by ID"""
+        return self._convert_to_response(self._get_owned_card(CardRepository(db), card_id, user_id))
+
+    def create_card(self, user_id: str, card_data: CardCreateRequest, db: Session) -> Card:
         """Create a new card"""
         # Verify the account exists and belongs to the user
-        account = self.account_repository.get_by_id(db, card_data.account_id)
+        account = AccountRepository(db).get_account_by_id(card_data.account_id)
         if not account or account.user_id != user_id:
             raise ValidationException("Invalid account ID or account does not belong to user")
-        
-        # Create new card
-        card_dict = {
-            "id": str(uuid.uuid4()),
-            "user_id": user_id,
-            "account_id": card_data.account_id,
-            "card_type": CardTypeEnum(card_data.card_type),
-            "card_number": self._generate_card_number(),
-            "cardholder_name": card_data.cardholder_name,
-            "expiry_date": datetime.now() + timedelta(days=365 * 3),  # 3 years from now
-            "cvv": self._generate_cvv(),
-            "pin": self._generate_pin(),
-            "daily_limit": card_data.daily_limit,
-            "monthly_limit": card_data.monthly_limit,
-            "status": CardStatusEnum.ACTIVE,
-            "is_blocked": False,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        
-        card = self.card_repository.create(db, card_dict)
+
+        repository = CardRepository(db)
+        today = date.today()
+        card = repository.create_card(
+            user_id=user_id,
+            account_id=card_data.account_id,
+            card_type=CardTypeEnum(card_data.card_type.value),
+            cardholder_name=card_data.name_on_card,
+            card_number_masked=self._generate_masked_number(repository),
+            expiry_month=today.month,
+            expiry_year=today.year + CARD_VALIDITY_YEARS,
+        )
         return self._convert_to_response(card)
-    
-    def update_card(self, card_id: str, user_id: str, card_data: CardUpdateRequest, db: Session) -> CardResponse:
+
+    def update_card(self, card_id: str, user_id: str, card_data: CardUpdateRequest, db: Session) -> Card:
         """Update card details"""
-        card = self.card_repository.get_by_id(db, card_id)
-        if not card or card.user_id != user_id:
-            raise CardNotFoundException(card_id)
-        
-        update_data = {}
-        if card_data.daily_limit is not None:
-            update_data["daily_limit"] = card_data.daily_limit
-        if card_data.monthly_limit is not None:
-            update_data["monthly_limit"] = card_data.monthly_limit
-        if card_data.cardholder_name is not None:
-            update_data["cardholder_name"] = card_data.cardholder_name
-        
-        if update_data:
-            update_data["updated_at"] = datetime.utcnow()
-            card = self.card_repository.update(db, card_id, update_data)
-        
+        repository = CardRepository(db)
+        card = self._get_owned_card(repository, card_id, user_id)
+
+        if card_data.daily_limit is not None or card_data.monthly_limit is not None:
+            card = repository.update_card_limits(card_id, card_data.daily_limit, card_data.monthly_limit)
+        if card_data.name_on_card is not None:
+            card = repository.update_cardholder_name(card_id, card_data.name_on_card)
+
         return self._convert_to_response(card)
-    
-    def block_card(self, card_id: str, user_id: str, db: Session) -> CardResponse:
+
+    def block_card(self, card_id: str, user_id: str, db: Session) -> Card:
         """Block a card"""
-        card = self.card_repository.get_by_id(db, card_id)
-        if not card or card.user_id != user_id:
-            raise CardNotFoundException(card_id)
-        
-        update_data = {
-            "is_blocked": True,
-            "status": CardStatusEnum.BLOCKED,
-            "updated_at": datetime.utcnow()
-        }
-        
-        card = self.card_repository.update(db, card_id, update_data)
-        return self._convert_to_response(card)
-    
-    def unblock_card(self, card_id: str, user_id: str, db: Session) -> CardResponse:
+        repository = CardRepository(db)
+        self._get_owned_card(repository, card_id, user_id)
+        return self._convert_to_response(repository.update_card_status(card_id, CardStatusEnum.BLOCKED))
+
+    def unblock_card(self, card_id: str, user_id: str, db: Session) -> Card:
         """Unblock a card"""
-        card = self.card_repository.get_by_id(db, card_id)
-        if not card or card.user_id != user_id:
-            raise CardNotFoundException(card_id)
-        
-        update_data = {
-            "is_blocked": False,
-            "status": CardStatusEnum.ACTIVE,
-            "updated_at": datetime.utcnow()
-        }
-        
-        card = self.card_repository.update(db, card_id, update_data)
-        return self._convert_to_response(card)
-    
+        repository = CardRepository(db)
+        self._get_owned_card(repository, card_id, user_id)
+        return self._convert_to_response(repository.update_card_status(card_id, CardStatusEnum.ACTIVE))
+
     def delete_card(self, card_id: str, user_id: str, db: Session) -> bool:
         """Delete a card"""
-        card = self.card_repository.get_by_id(db, card_id)
-        if not card or card.user_id != user_id:
-            raise CardNotFoundException(card_id)
-        
-        return self.card_repository.delete(db, card_id)
-    
-    def _convert_to_response(self, card: DBCard) -> CardResponse:
+        repository = CardRepository(db)
+        self._get_owned_card(repository, card_id, user_id)
+        return repository.delete_card(card_id)
+
+    def _convert_to_response(self, card: DBCard) -> Card:
         """Convert database card to response model"""
-        return CardResponse(
+        last_day = calendar.monthrange(card.expiry_year, card.expiry_month)[1]
+        return Card(
             id=card.id,
             account_id=card.account_id,
+            user_id=card.user_id,
+            card_number=card.card_number_masked,
             card_type=card.card_type.value,
-            card_number=f"****-****-****-{card.card_number[-4:]}",  # Mask card number
-            cardholder_name=card.cardholder_name,
-            expiry_date=card.expiry_date,
-            daily_limit=float(card.daily_limit),
-            monthly_limit=float(card.monthly_limit),
+            name_on_card=card.cardholder_name,
+            expiry_date=date(card.expiry_year, card.expiry_month, last_day),
             status=card.status.value,
-            is_blocked=card.is_blocked,
-            created_at=card.created_at,
-            updated_at=card.updated_at
+            daily_limit=card.daily_limit,
+            monthly_limit=card.monthly_limit,
+            is_contactless=card.is_contactless_enabled,
+            is_international=card.is_international_enabled,
+            created_at=card.created_at or datetime.utcnow(),
+            updated_at=card.updated_at or card.created_at or datetime.utcnow(),
         )

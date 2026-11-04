@@ -4,11 +4,14 @@ Authentication and authorization utilities for FastAPI.
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
+import jwt
+from jwt import InvalidTokenError as JWTError
 from datetime import datetime, UTC
 
 from ..config.settings import get_settings
 from ..core.exceptions import AuthenticationException, TokenExpiredException, InvalidTokenException
+from ..auth.signing_key import ALGORITHM, jwt_secret
+from ..auth.dependencies import account_is_closed
 
 # Security scheme for JWT tokens
 security = HTTPBearer()
@@ -35,8 +38,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         # Decode JWT token
         payload = jwt.decode(
             token, 
-            settings.jwt_secret_key, 
-            algorithms=[settings.jwt_algorithm]
+            jwt_secret(), 
+            algorithms=[ALGORITHM]
         )
         
         # Check token expiration
@@ -44,10 +47,17 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         if exp and datetime.fromtimestamp(exp, UTC) < datetime.now(UTC):
             raise TokenExpiredException("access_token")
         
+        # Refresh tokens only work on the refresh endpoint
+        if payload.get("type") == "refresh" or payload.get("token_type") == "refresh":
+            raise InvalidTokenException("access_token")
+        
         # Extract user information
         user_id = payload.get("sub")
         if not user_id:
             raise InvalidTokenException("access_token")
+        # A closed account's tokens stop working at once (the same rule as auth.dependencies)
+        if account_is_closed(user_id):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="This account is closed.")
         
         # Return user info (in a real app, you might fetch from database)
         return {
@@ -83,6 +93,34 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+async def get_current_user_id(current_user: dict = Depends(get_current_user)) -> str:
+    """
+    Get the authenticated user's ID from the token, never from client input.
+    """
+    return current_user["user_id"]
+
+
+def current_role(user_id: str):
+    from ..database.config import SessionLocal
+    from ..database.models import User
+    with SessionLocal() as db:
+        row = db.query(User.role).filter(User.id == user_id).first()
+    return row[0] if row else None
+
+
+async def require_admin_user(current_user: dict = Depends(get_current_user)) -> dict:
+    """
+    Require an authenticated user with the admin role.
+    """
+    # The role is read from the database, so removing someone's admin role takes effect at once
+    if current_role(current_user["user_id"]) != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user
 
 
 async def get_current_active_user(current_user: dict = Depends(get_current_user)) -> dict:
@@ -154,7 +192,7 @@ def create_access_token(user_id: str, email: str, expires_delta: Optional[int] =
         "is_verified": True
     }
     
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return jwt.encode(payload, jwt_secret(), algorithm=settings.jwt_algorithm)
 
 
 def create_refresh_token(user_id: str, email: str) -> str:
@@ -178,7 +216,7 @@ def create_refresh_token(user_id: str, email: str) -> str:
         "token_type": "refresh"
     }
     
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return jwt.encode(payload, jwt_secret(), algorithm=settings.jwt_algorithm)
 
 
 def verify_token(token: str, token_type: str = "access") -> dict:
@@ -199,8 +237,8 @@ def verify_token(token: str, token_type: str = "access") -> dict:
     try:
         payload = jwt.decode(
             token, 
-            settings.jwt_secret_key, 
-            algorithms=[settings.jwt_algorithm]
+            jwt_secret(), 
+            algorithms=[ALGORITHM]
         )
         
         # Check token type

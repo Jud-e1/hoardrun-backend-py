@@ -9,14 +9,18 @@ from typing import Dict, List, Set, Optional, Any
 from fastapi import WebSocket, WebSocketDisconnect, HTTPException, status
 from datetime import datetime
 import asyncio
-from jose import jwt
-from jose.exceptions import JWTError as InvalidTokenError
+import jwt
+from jwt import InvalidTokenError
 
 from ..config.settings import get_settings
 from ..core.exceptions import AuthenticationError
+from ..auth.signing_key import ALGORITHM, jwt_secret
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+# Rooms a client may join on its own. Everything else is server-assigned.
+JOINABLE_ROOMS = {"market_data"}
 
 class ConnectionManager:
     """
@@ -248,9 +252,13 @@ async def authenticate_websocket(websocket: WebSocket, token: str) -> Dict[str, 
         # Decode JWT token
         payload = jwt.decode(
             token,
-            settings.secret_key,
-            algorithms=[settings.algorithm]
+            jwt_secret(),
+            algorithms=[ALGORITHM]
         )
+        
+        # Refresh tokens only work on the refresh endpoint
+        if payload.get("type") == "refresh" or payload.get("token_type") == "refresh":
+            raise AuthenticationError("Invalid token type")
         
         user_id = payload.get("sub")
         if not user_id:
@@ -295,7 +303,13 @@ async def handle_websocket_message(websocket: WebSocket, message: Dict[str, Any]
         elif message_type == "join_room":
             # Join a specific room
             room = message.get("room")
-            if room:
+            if room and room not in JOINABLE_ROOMS:
+                await manager.send_personal_message({
+                    "type": "error",
+                    "message": "You can't join this room",
+                    "timestamp": datetime.utcnow().isoformat()
+                }, websocket)
+            elif room:
                 manager.join_room(websocket, room)
                 await manager.send_personal_message({
                     "type": "room_joined",

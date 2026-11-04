@@ -6,67 +6,52 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool, QueuePool
 from ..config.settings import settings
+from .url import database_url, is_postgres, safe_url
 import logging
 
 logger = logging.getLogger(__name__)
 
+DATABASE_URL = database_url()
+
+
 def get_engine_config():
-    """Get database engine configuration based on database type and environment."""
+    """Engine settings for the database in use."""
     config = {
         "pool_pre_ping": settings.database_pool_pre_ping,
-        "echo": settings.database_echo or settings.debug,
+        "echo": settings.database_echo,
         "pool_recycle": settings.database_pool_recycle,
     }
 
-    if settings.database_url.startswith("sqlite"):
-        # SQLite-specific configuration
+    if DATABASE_URL.startswith("sqlite"):
         config.update({
             "poolclass": StaticPool,
-            "connect_args": {
-                "check_same_thread": False,
-                "timeout": settings.database_connect_timeout
-            }
+            "connect_args": {"check_same_thread": False, "timeout": settings.database_connect_timeout},
         })
-    elif settings.database_url.startswith("postgresql"):
-        # PostgreSQL-specific configuration with enhanced SSL handling for Render
-        # Use more permissive SSL settings for cloud databases
-        ssl_mode = settings.database_ssl_mode if hasattr(settings, 'database_ssl_mode') else "prefer"
-
-        # For Render PostgreSQL, we need to be more flexible with SSL
-        connect_args = {
-            "connect_timeout": 60,  # Longer timeout for cloud connections
-            "application_name": f"{settings.app_name} v{settings.app_version}",
-        }
-
-        # Add SSL settings - Render PostgreSQL requires SSL
-        connect_args.update({
-            "sslmode": "require",  # Force SSL for Render PostgreSQL
-            "sslcert": None,  # Don't use client certificates
-            "sslkey": None,   # Don't use client keys
-            "sslrootcert": None,  # Don't verify server certificate (Render handles this)
-        })
-
-        # Add keepalive settings for stable connections
-        connect_args.update({
-            "keepalives_idle": 600,      # 10 minutes before sending keepalive
-            "keepalives_interval": 30,   # Send keepalive every 30s
-            "keepalives_count": 3,       # Max 3 failed keepalives before disconnect
-        })
-
+    elif is_postgres(DATABASE_URL):
         config.update({
             "poolclass": QueuePool,
+            # Kept small: every server process holds its own pool, and hosted Postgres plans cap connections
             "pool_size": settings.database_pool_size,
             "max_overflow": settings.database_max_overflow,
             "pool_timeout": settings.database_pool_timeout,
-            "pool_pre_ping": True,  # Verify connections before use
-            "pool_recycle": 3600,   # Recycle connections every hour
-            "connect_args": connect_args
+            "pool_pre_ping": True,
+            # Below the ~30 minute idle cut-off of most hosted poolers
+            "pool_recycle": min(settings.database_pool_recycle, 1800),
+            "connect_args": {
+                "connect_timeout": settings.database_connect_timeout,
+                "application_name": "hoardrun-api",
+                # verify-full in production when the provider's CA certificate is installed; require at least
+                "sslmode": settings.database_ssl_mode or "require",
+                "keepalives_idle": 600,
+                "keepalives_interval": 30,
+                "keepalives_count": 3,
+            },
         })
 
     return config
 
 # Create database engine with optimized configuration
-engine = create_engine(settings.database_url, **get_engine_config())
+engine = create_engine(DATABASE_URL, **get_engine_config())
 
 # Create SessionLocal class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -76,8 +61,9 @@ Base = declarative_base()
 
 
 def create_tables():
-    """Create all database tables."""
+    """Create any missing tables (development and tests only; production uses migrations)."""
     try:
+        from . import registry  # noqa: F401 - every table module, so none is missed
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
         return True
@@ -109,8 +95,11 @@ def get_db():
 
 def drop_tables():
     """
-    Drop all tables in the database.
+    Drop all tables in the database. Never in production, whoever calls it.
     """
+    from ..auth.signing_key import is_production
+    if is_production():
+        raise RuntimeError("Refusing to drop tables in production")
     Base.metadata.drop_all(bind=engine)
 
 
@@ -146,10 +135,10 @@ def get_database_info():
     try:
         with engine.connect() as connection:
             # Get database version
-            if settings.database_url.startswith("postgresql"):
-                result = connection.execute(text("SELECT version()"))
-                version = result.fetchone()[0]
-            elif settings.database_url.startswith("sqlite"):
+            if is_postgres(DATABASE_URL):
+                result = connection.execute(text("SHOW server_version"))
+                version = f"PostgreSQL {result.fetchone()[0]}"
+            elif DATABASE_URL.startswith("sqlite"):
                 result = connection.execute(text("SELECT sqlite_version()"))
                 version = f"SQLite {result.fetchone()[0]}"
             else:
@@ -164,24 +153,37 @@ def get_database_info():
             }
 
             return {
-                "database_url": settings.database_url.split('@')[0] + '@***',  # Hide credentials
+                # Host and database name only; the password is never shown
+                "database_url": safe_url(DATABASE_URL),
                 "database_version": version,
                 "pool_info": pool_info,
                 "connection_healthy": True
             }
     except Exception as e:
         logger.error(f"Failed to get database info: {e}")
-        return {
-            "database_url": settings.database_url.split('@')[0] + '@***',
-            "error": str(e),
-            "connection_healthy": False
-        }
+        # The error text can carry connection details, so it stays in the server log
+        return {"database_url": safe_url(DATABASE_URL), "error": "Database unavailable", "connection_healthy": False}
 
 
 def initialize_database():
     """
-    Initialize database with tables and basic setup.
+    Development creates missing tables. Production changes nothing: it checks the database is at
+    the code's migration head and raises SchemaOutOfDate if not, so the app refuses to start.
     """
+    from ..auth.signing_key import is_production
+    if is_production():
+        from .migrate import SchemaOutOfDate, require_up_to_date
+        try:
+            require_up_to_date(engine)
+        except SchemaOutOfDate:
+            raise
+        except Exception as error:
+            # Not being able to check is as unsafe as being behind
+            logger.error("Couldn't check the database schema: %s", type(error).__name__)
+            raise SchemaOutOfDate(f"Couldn't confirm the database schema ({type(error).__name__}). "
+                                  "Check DATABASE_URL and that the app's database user can read alembic_version.") from error
+        logger.info("Database schema is at the current migration")
+        return True
     try:
         logger.info("Initializing database...")
         create_tables()

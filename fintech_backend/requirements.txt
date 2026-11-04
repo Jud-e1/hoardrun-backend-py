@@ -6,8 +6,7 @@ pydantic
 pydantic-settings
 email-validator
 python-multipart
-python-jose[cryptography]
-passlib[bcrypt]
+bcrypt>=4.0
 python-dotenv
 httpx
 slowapi
@@ -29,7 +28,6 @@ alembic
 cryptography
 pyopenssl
 
-jose
 
 plaid-python
 
@@ -37,3 +35,7 @@ plaid-python
 resend
 
 jinja2
+anthropic>=2.4
+stripe>=16
+# Sign-in tokens (replaced python-jose, which has unfixed advisories)
+PyJWT>=2.10.1

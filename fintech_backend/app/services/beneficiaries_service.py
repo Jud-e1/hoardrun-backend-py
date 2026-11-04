@@ -404,55 +404,7 @@ class BeneficiariesService:
     # Mock database operations (replace with actual database calls)
     async def _get_user_beneficiaries(self, user_id: str, search_request: BeneficiarySearchRequest, db: Session) -> List[BeneficiaryProfile]:
         """Get user beneficiaries from database (mock implementation)."""
-        # Mock beneficiaries data
-        mock_beneficiaries = [
-            BeneficiaryProfile(
-                id="ben_1",
-                user_id=user_id,
-                name="John Doe",
-                email="john@example.com",
-                phone_number="+1234567890",
-                type=BeneficiaryType.BANK_ACCOUNT,
-                status=BeneficiaryStatus.ACTIVE,
-                bank_name="Example Bank",
-                account_number="****1234",
-                routing_number="123456789",
-                country="US",
-                currency="USD",
-                is_verified=True,
-                is_favorite=True,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
-            ),
-            BeneficiaryProfile(
-                id="ben_2",
-                user_id=user_id,
-                name="Jane Smith",
-                email="jane@example.com",
-                phone_number="+1234567891",
-                type=BeneficiaryType.MOBILE_MONEY,
-                status=BeneficiaryStatus.ACTIVE,
-                mobile_provider="MTN",
-                mobile_account="****5678",
-                country="UG",
-                currency="UGX",
-                is_verified=False,
-                is_favorite=False,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
-            )
-        ]
-        
-        # Apply filters (simplified)
-        filtered_beneficiaries = mock_beneficiaries
-        if search_request.type:
-            filtered_beneficiaries = [b for b in filtered_beneficiaries if b.type == search_request.type]
-        if search_request.status:
-            filtered_beneficiaries = [b for b in filtered_beneficiaries if b.status == search_request.status]
-        if search_request.is_favorite is not None:
-            filtered_beneficiaries = [b for b in filtered_beneficiaries if b.is_favorite == search_request.is_favorite]
-        
-        return filtered_beneficiaries
+        return []
     
     async def _save_beneficiary_to_db(self, beneficiary_id: str, beneficiary_data: BeneficiaryCreate, db: Session) -> BeneficiaryProfile:
         """Save beneficiary to database (mock implementation)."""
@@ -485,25 +437,6 @@ class BeneficiariesService:
     
     async def _get_beneficiary_from_db(self, beneficiary_id: str, user_id: str, db: Session) -> Optional[BeneficiaryProfile]:
         """Get beneficiary from database (mock implementation)."""
-        if beneficiary_id == "ben_1":
-            return BeneficiaryProfile(
-                id=beneficiary_id,
-                user_id=user_id,
-                name="John Doe",
-                email="john@example.com",
-                phone_number="+1234567890",
-                type=BeneficiaryType.BANK_ACCOUNT,
-                status=BeneficiaryStatus.ACTIVE,
-                bank_name="Example Bank",
-                account_number="****1234",
-                routing_number="123456789",
-                country="US",
-                currency="USD",
-                is_verified=True,
-                is_favorite=True,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
-            )
         return None
     
     async def _update_beneficiary_in_db(self, beneficiary_id: str, update_data: BeneficiaryUpdate, db: Session) -> BeneficiaryProfile:

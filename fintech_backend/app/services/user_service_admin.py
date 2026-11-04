@@ -10,7 +10,7 @@ from sqlalchemy import func
 
 from ..core.exceptions import ValidationException, UserNotFoundException
 from ..config.logging import get_logger
-from .user_service import pwd_context
+from ..auth import passwords
 
 logger = get_logger(__name__)
 
@@ -263,7 +263,7 @@ class UserServiceAdmin:
             from ..database.models import User
 
             # Hash password
-            password_hash = pwd_context.hash(user_data["password"])
+            password_hash = passwords.hash_password(user_data["password"])
 
             # Create user
             new_user = User(

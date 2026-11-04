@@ -135,15 +135,52 @@ class Settings(BaseSettings):
         description="Paystack Webhook Secret"
     )
     paystack_timeout: int = Field(default=30, description="Paystack API timeout in seconds")
+
+    # Stripe: card deposits for US customers (sk_test_/sk_live_ secret key, whsec_ webhook secret)
+    stripe_secret_key: str = Field(default="", description="Stripe secret key")
+    stripe_webhook_secret: str = Field(default="", description="Stripe webhook signing secret")
+    # Stripe Issuing: Hoardrun cards. The publishable key lets the app show card details in Stripe's own fields.
+    stripe_publishable_key: str = Field(default="", description="Stripe publishable key (pk_test_/pk_live_)")
+    stripe_issuing_webhook_secret: str = Field(default="", description="Signing secret of the Issuing webhook endpoint")
+    issuing_monthly_limit: int = Field(default=2000, description="Default monthly spending limit per card, in dollars")
+    # Plaid: linking US bank accounts and moving money to and from them by ACH
+    plaid_client_id: str = Field(default="", description="Plaid client ID")
+    plaid_secret: str = Field(default="", description="Plaid secret for the chosen environment")
+    plaid_env: str = Field(default="sandbox", description="Plaid environment (sandbox/production)")
+    plaid_webhook_url: str = Field(default="", description="Public URL Plaid calls with transfer and item updates")
+    # Encrypts stored secrets such as Plaid access tokens; required in production
+    data_encryption_key: str = Field(default="", description="Key for encrypting stored secrets (32+ characters)")
     # Email service configuration
     resend_api_key: str = Field(
         default="",
         description="Resend API key for email service"
     )
     email_from: str = Field(
-        default="noreply@hoardrun.com",
-        description="Default email sender address"
+        default="Hoardrun <noreply@hoardrun.com>",
+        description="Sender for Hoardrun emails; its domain must be verified in Resend"
     )
+    # Alpaca Broker API: a brokerage account per customer for ETFs and crypto, funded from Hoardrun cash by journal
+    alpaca_broker_key: str = Field(default="", description="Alpaca Broker API key ID")
+    alpaca_broker_secret: str = Field(default="", description="Alpaca Broker API secret")
+    alpaca_env: str = Field(default="sandbox", description="Alpaca environment (sandbox/live)")
+    alpaca_firm_account_id: str = Field(default="", description="Hoardrun's firm account at Alpaca, the other side of every cash journal")
+    # Persona identity checks (an inquiry template, an API key, and the webhook's signing secret)
+    persona_api_key: str = Field(default="", description="Persona API key (persona_sandbox_... or persona_production_...)")
+    persona_template_id: str = Field(default="", description="Persona inquiry template ID (itmpl_...)")
+    persona_webhook_secret: str = Field(default="", description="Persona webhook secret (wbhsec_...)")
+    # Google sign-in (a "Web application" OAuth client; its redirect URI is APP_URL/auth/google/callback)
+    google_client_id: str = Field(default="", description="Google OAuth client ID")
+    google_client_secret: str = Field(default="", description="Google OAuth client secret")
+    # Sign in with Apple (a Services ID for the web, plus a Sign in with Apple key from the developer account).
+    # Apple sends people back to API_URL/api/v1/auth/apple/callback, so that address goes in the Services ID.
+    apple_services_id: str = Field(default="", description="Apple Services ID, e.g. com.hoardrun.signin")
+    apple_team_id: str = Field(default="", description="Apple developer Team ID (10 characters)")
+    apple_key_id: str = Field(default="", description="Key ID of the Sign in with Apple key")
+    apple_private_key: str = Field(default="", description="Contents of the .p8 key file (newlines may be written as \\n)")
+    # This API's own public address (Apple posts sign-ins back to it)
+    api_url: str = Field(default="http://localhost:8000", description="Public address of this API, e.g. https://api.hoardrun.com")
+    # Where links in emails point (password reset, notifications)
+    app_url: str = Field(default="https://hoardrun.vercel.app", description="Public address of the Hoardrun web app")
     email_verification_subject: str = Field(
         default="Verify Your Hoardrun Account",
         description="Email verification subject line"
@@ -210,16 +247,14 @@ class Settings(BaseSettings):
     max_request_size: int = Field(default=1048576, description="Maximum request size in bytes (1MB)")
     
     # Database settings
-    database_url: str = Field(
-        default="postgresql://postgres.qpmdlptrpxsvojncrjhi:1236HNzP74u8EMM@aws-1-eu-west-1.pooler.supabase.com:6543/postgres",
-        description="Database connection URL"
-    )
+    # No default: a real connection string never belongs in code. Development falls back to SQLite (database/url.py).
+    database_url: str = Field(default="", description="Database connection URL (postgresql://... in production)")
     database_pool_size: int = Field(
-        default=20,
+        default=5,
         description="Database connection pool size"
     )
     database_max_overflow: int = Field(
-        default=30,
+        default=5,
         description="Database connection pool max overflow"
     )
     database_pool_timeout: int = Field(
@@ -255,11 +290,11 @@ class Settings(BaseSettings):
     
     # Security settings (JWT)
     secret_key: str = Field(
-        default="your-secret-key-here", 
+        default="", 
         description="Secret key for JWT token generation"
     )
     jwt_secret_key: str = Field(
-        default="your-secret-key-here", 
+        default="", 
         description="JWT secret key for token generation"
     )
     algorithm: str = Field(default="HS256", description="JWT algorithm")

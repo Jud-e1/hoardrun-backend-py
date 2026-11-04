@@ -25,6 +25,8 @@ from ..config.logging import get_logger
 
 logger = get_logger(__name__)
 
+SYNC_INTERVAL = timedelta(minutes=5)
+
 
 class PlaidService:
     """Service for managing REAL Plaid bank account integrations."""
@@ -47,7 +49,7 @@ class PlaidService:
             # Create REAL link token via Plaid API
             link_data = await self.plaid_client.create_link_token(
                 user_id=user_id,
-                client_name=request.client_name or "HoardRun",
+                client_name=request.client_name or "Hoardrun",
                 products=request.products or ["auth", "transactions"],
                 country_codes=request.country_codes or ["US"],
                 language=request.language or "en",
@@ -78,7 +80,7 @@ class PlaidService:
 
         except Exception as e:
             logger.error(f"Failed to create Plaid link token for user {user_id}: {e}")
-            raise ExternalServiceException(f"Plaid service error: {str(e)}")
+            raise ExternalServiceException("Plaid", "request", str(e))
 
     async def exchange_public_token(
         self,
@@ -113,7 +115,10 @@ class PlaidService:
                 institution_name = institution_info.get("name")
 
             # Create Plaid connection record with REAL data
-            connection_id = str(uuid.uuid4())
+            existing = await self.repo.get_plaid_connection_by_item_id(token_data["item_id"])
+            if existing and existing.user_id != user_id:
+                raise BusinessLogicError("connection_owned", "This bank connection belongs to another user")
+            connection_id = existing.connection_id if existing else str(uuid.uuid4())
             connection = PlaidConnection(
                 connection_id=connection_id,
                 user_id=user_id,
@@ -127,14 +132,16 @@ class PlaidService:
                 error_message=None
             )
 
-            await self.repo.create_plaid_connection(connection)
+            if existing:
+                await self.repo.update_plaid_connection(connection)
+            else:
+                await self.repo.create_plaid_connection(connection)
 
             # Perform initial sync to get REAL account data
             await self._sync_connection_data(connection)
 
             response = PlaidExchangeTokenResponse(
                 connection_id=connection_id,
-                access_token=token_data["access_token"],
                 item_id=token_data["item_id"]
             )
 
@@ -143,7 +150,7 @@ class PlaidService:
 
         except Exception as e:
             logger.error(f"Failed to exchange Plaid token for user {user_id}: {e}")
-            raise ExternalServiceException(f"Plaid service error: {str(e)}")
+            raise ExternalServiceException("Plaid", "request", str(e))
 
     async def sync_connection(self, user_id: str, connection_id: str) -> PlaidSyncResponse:
         """
@@ -188,7 +195,7 @@ class PlaidService:
             connection.error_message = str(e)
             await self.repo.update_plaid_connection(connection)
 
-            raise ExternalServiceException(f"Sync failed: {str(e)}")
+            raise ExternalServiceException("Plaid", "sync", str(e))
 
     async def get_user_connections(self, user_id: str) -> List[PlaidConnection]:
         """Get all ACTIVE Plaid connections for a user."""
@@ -226,18 +233,57 @@ class PlaidService:
         # Aggregate REAL accounts from all active connections
         all_accounts = []
         for connection in active_connections:
-            # Sync latest data from Plaid before returning
-            try:
-                await self._sync_connection_data(connection)
-            except Exception as e:
-                logger.warning(f"Failed to sync connection {connection.connection_id}: {e}")
-                continue
+            if self._needs_sync(connection):
+                try:
+                    await self._sync_connection_data(connection)
+                    connection.last_synced_at = datetime.utcnow()
+                    await self.repo.update_plaid_connection(connection)
+                except Exception as e:
+                    logger.warning(f"Failed to sync connection {connection.connection_id}: {e}")
 
             accounts = await self.repo.get_plaid_accounts(connection.connection_id)
             all_accounts.extend(accounts)
 
         logger.info(f"Found {len(all_accounts)} REAL Plaid accounts for user {user_id}")
         return all_accounts
+
+    def _needs_sync(self, connection: PlaidConnection) -> bool:
+        if not self.plaid_client.configured:
+            return False
+        return (
+            connection.last_synced_at is None
+            or datetime.utcnow() - connection.last_synced_at > SYNC_INTERVAL
+        )
+
+    async def _get_owned_connection(self, user_id: str, connection_id: str) -> PlaidConnection:
+        connection = await self.repo.get_plaid_connection(connection_id)
+        if not connection or connection.user_id != user_id:
+            raise NotFoundError(f"Plaid connection {connection_id} not found")
+        return connection
+
+    async def get_connection_accounts(self, user_id: str, connection_id: str) -> List[PlaidAccount]:
+        """Accounts for one of the user's connections."""
+        connection = await self._get_owned_connection(user_id, connection_id)
+        return await self.repo.get_plaid_accounts(connection.connection_id)
+
+    async def get_connection_transactions(
+        self,
+        user_id: str,
+        connection_id: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        account_ids: Optional[List[str]] = None
+    ) -> List[PlaidTransaction]:
+        """Transactions for one of the user's connections."""
+        connection = await self._get_owned_connection(user_id, connection_id)
+        transactions = await self.repo.get_plaid_transactions_by_date_range(
+            connection.connection_id,
+            start_date or (date.today() - timedelta(days=30)),
+            end_date or date.today()
+        )
+        if account_ids:
+            transactions = [t for t in transactions if t.account_id in account_ids]
+        return transactions
 
     async def disconnect_connection(self, user_id: str, connection_id: str) -> Dict[str, Any]:
         """Disconnect a REAL Plaid connection."""
@@ -256,6 +302,7 @@ class PlaidService:
 
             # Update connection status
             connection.status = PlaidConnectionStatus.DISCONNECTED
+            connection.access_token = ""
             await self.repo.update_plaid_connection(connection)
 
             logger.info(f"Successfully disconnected REAL Plaid connection {connection_id}")
@@ -267,7 +314,7 @@ class PlaidService:
 
         except Exception as e:
             logger.error(f"Failed to disconnect connection {connection_id}: {e}")
-            raise ExternalServiceException(f"Disconnect failed: {str(e)}")
+            raise ExternalServiceException("Plaid", "disconnect", str(e))
 
     async def _sync_connection_data(self, connection: PlaidConnection) -> Dict[str, int]:
         """
@@ -320,6 +367,8 @@ class PlaidService:
                     date=transaction_data["date"],
                     name=transaction_data["name"],
                     merchant_name=transaction_data.get("merchant_name"),
+                    authorized_date=transaction_data.get("authorized_date"),
+                    payment_channel=transaction_data.get("payment_channel"),
                     pending=transaction_data.get("pending", False),
                     created_at=datetime.utcnow(),
                     updated_at=datetime.utcnow()
@@ -381,7 +430,7 @@ class PlaidService:
             # Create debit card verification link token via Plaid API
             link_data = await self.plaid_client.create_debit_card_link_token(
                 user_id=user_id,
-                client_name="HoardRun"
+                client_name="Hoardrun"
             )
 
             # Store link token metadata for tracking
@@ -408,7 +457,7 @@ class PlaidService:
 
         except Exception as e:
             logger.error(f"Failed to create debit card link token for user {user_id}: {e}")
-            raise ExternalServiceException(f"Plaid service error: {str(e)}")
+            raise ExternalServiceException("Plaid", "request", str(e))
 
     async def verify_debit_card(
         self,
@@ -467,7 +516,7 @@ class PlaidService:
 
         except Exception as e:
             logger.error(f"Failed to verify debit card for user {user_id}: {e}")
-            raise ExternalServiceException(f"Plaid service error: {str(e)}")
+            raise ExternalServiceException("Plaid", "request", str(e))
 
     async def test_connection(self) -> Dict[str, Any]:
         """Test REAL Plaid API connection."""

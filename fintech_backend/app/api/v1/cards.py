@@ -15,6 +15,7 @@ from ...models.flat_card import (
 )
 from ...services.database_card_service import DatabaseCardService
 from ...database.config import get_db
+from ...core.auth import get_current_user
 from ...core.exceptions import (
     ValidationException, CardNotFoundException, BusinessRuleViolationException,
     FintechException, InsufficientFundsException
@@ -32,9 +33,10 @@ def get_card_service():
     return DatabaseCardService()
 
 
+@router.get("", response_model=CardListResponse, include_in_schema=False)
 @router.get("/", response_model=CardListResponse)
 async def list_cards(
-    user_id: str = Query(..., description="User ID to list cards for"),
+    current_user: dict = Depends(get_current_user),
     card_type: Optional[CardType] = Query(None, description="Filter by card type"),
     status: Optional[CardStatus] = Query(None, description="Filter by card status"),
     account_id: Optional[str] = Query(None, description="Filter by account ID"),
@@ -48,9 +50,9 @@ async def list_cards(
     with optional filtering by type, status, or account.
     """
     try:
-        logger.info(f"API: Listing cards for user {user_id}")
+        logger.info(f"API: Listing cards for user {current_user['user_id']}")
         
-        cards = card_service.get_user_cards(user_id, db)
+        cards = card_service.get_user_cards(current_user["user_id"], db)
         
         # Apply filters if provided
         if card_type:
@@ -76,10 +78,36 @@ async def list_cards(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.get("/health", response_model=dict)
+async def cards_health():
+    """
+    Health check endpoint for card service.
+    
+    Returns the operational status of the card management service.
+    """
+    try:
+        # Simulate service checks
+        await asyncio.sleep(0.01)  # Mock processing time
+        
+        return success_response(
+            data={
+                "service": "card_service",
+                "status": "healthy",
+                "timestamp": "2024-01-15T10:30:00Z",
+                "version": "1.0.0"
+            },
+            message="Card service is healthy"
+        )
+        
+    except Exception as e:
+        logger.error(f"Card service health check failed: {e}")
+        raise HTTPException(status_code=503, detail="Service unavailable")
+
+
 @router.get("/{card_id}", response_model=CardResponse)
 async def get_card(
     card_id: str = Path(..., description="Card ID"),
-    user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
     card_service: DatabaseCardService = Depends(get_card_service)
 ):
@@ -92,7 +120,7 @@ async def get_card(
     try:
         logger.info(f"API: Getting card details for {card_id}")
         
-        card = card_service.get_card_by_id(card_id, user_id, db)
+        card = card_service.get_card_by_id(card_id, current_user["user_id"], db)
         
         return success_response(
             data={"card": card},
@@ -110,9 +138,10 @@ async def get_card(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.post("", response_model=CardCreatedResponse, include_in_schema=False)
 @router.post("/", response_model=CardCreatedResponse)
 async def create_card(
-    user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
     request: CardCreateRequest = ...,
     db: Session = Depends(get_db),
     card_service: DatabaseCardService = Depends(get_card_service)
@@ -124,9 +153,9 @@ async def create_card(
     with the requested settings and default spending limits.
     """
     try:
-        logger.info(f"API: Creating card for user {user_id}")
+        logger.info(f"API: Creating card for user {current_user['user_id']}")
         
-        card = card_service.create_card(user_id, request, db)
+        card = card_service.create_card(current_user["user_id"], request, db)
         
         # Estimate delivery time (mock data)
         delivery_estimate = "5-7 business days"
@@ -159,7 +188,7 @@ async def create_card(
 @router.patch("/{card_id}", response_model=CardResponse)
 async def update_card(
     card_id: str = Path(..., description="Card ID"),
-    user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
     request: CardUpdateRequest = ...,
     db: Session = Depends(get_db),
     card_service: DatabaseCardService = Depends(get_card_service)
@@ -173,7 +202,7 @@ async def update_card(
     try:
         logger.info(f"API: Updating card {card_id}")
         
-        card = card_service.update_card(card_id, user_id, request, db)
+        card = card_service.update_card(card_id, current_user["user_id"], request, db)
         
         return success_response(
             data={"card": card},
@@ -201,7 +230,7 @@ async def update_card(
 @router.post("/{card_id}/freeze", response_model=CardResponse)
 async def freeze_card_endpoint(
     card_id: str = Path(..., description="Card ID"),
-    user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
     reason: Optional[str] = Query("User requested", description="Reason for freezing"),
     db: Session = Depends(get_db),
     card_service: DatabaseCardService = Depends(get_card_service)
@@ -215,7 +244,7 @@ async def freeze_card_endpoint(
     try:
         logger.info(f"API: Freezing card {card_id}")
         
-        card = card_service.block_card(card_id, user_id, db)
+        card = card_service.block_card(card_id, current_user["user_id"], db)
         
         return success_response(
             data={"card": card},
@@ -239,7 +268,7 @@ async def freeze_card_endpoint(
 @router.post("/{card_id}/unfreeze", response_model=CardResponse)
 async def unfreeze_card_endpoint(
     card_id: str = Path(..., description="Card ID"),
-    user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
     reason: Optional[str] = Query("User requested", description="Reason for unfreezing"),
     db: Session = Depends(get_db),
     card_service: DatabaseCardService = Depends(get_card_service)
@@ -253,7 +282,7 @@ async def unfreeze_card_endpoint(
     try:
         logger.info(f"API: Unfreezing card {card_id}")
         
-        card = card_service.unblock_card(card_id, user_id, db)
+        card = card_service.unblock_card(card_id, current_user["user_id"], db)
         
         return success_response(
             data={"card": card},
@@ -277,7 +306,7 @@ async def unfreeze_card_endpoint(
 @router.post("/{card_id}/block", response_model=CardResponse)
 async def block_card_endpoint(
     card_id: str = Path(..., description="Card ID"),
-    user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
     reason: Optional[str] = Query("Security concern", description="Reason for blocking"),
     db: Session = Depends(get_db),
     card_service: DatabaseCardService = Depends(get_card_service)
@@ -291,7 +320,7 @@ async def block_card_endpoint(
     try:
         logger.info(f"API: Blocking card {card_id}")
         
-        card = card_service.block_card(card_id, user_id, db)
+        card = card_service.block_card(card_id, current_user["user_id"], db)
         
         return success_response(
             data={"card": card},
@@ -315,7 +344,7 @@ async def block_card_endpoint(
 @router.delete("/{card_id}", response_model=dict)
 async def delete_card(
     card_id: str = Path(..., description="Card ID"),
-    user_id: str = Query(..., description="User ID"),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
     card_service: DatabaseCardService = Depends(get_card_service)
 ):
@@ -328,7 +357,7 @@ async def delete_card(
     try:
         logger.info(f"API: Deleting card {card_id}")
         
-        success = card_service.delete_card(card_id, user_id, db)
+        success = card_service.delete_card(card_id, current_user["user_id"], db)
         
         return success_response(
             data={"success": success},
@@ -347,29 +376,3 @@ async def delete_card(
     except Exception as e:
         logger.error(f"Error deleting card: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@router.get("/health", response_model=dict)
-async def cards_health():
-    """
-    Health check endpoint for card service.
-    
-    Returns the operational status of the card management service.
-    """
-    try:
-        # Simulate service checks
-        await asyncio.sleep(0.01)  # Mock processing time
-        
-        return success_response(
-            data={
-                "service": "card_service",
-                "status": "healthy",
-                "timestamp": "2024-01-15T10:30:00Z",
-                "version": "1.0.0"
-            },
-            message="Card service is healthy"
-        )
-        
-    except Exception as e:
-        logger.error(f"Card service health check failed: {e}")
-        raise HTTPException(status_code=503, detail="Service unavailable")

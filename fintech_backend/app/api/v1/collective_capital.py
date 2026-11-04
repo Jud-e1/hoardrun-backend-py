@@ -17,6 +17,7 @@ from ...models.collective_capital import (
     InvestmentCategory, CircleStatus, ProposalStatus
 )
 from ...services.collective_capital_service import CollectiveCapitalService
+from ...core.auth import get_current_user_id
 from ...core.exceptions import (
     ValidationException, AccountNotFoundException, 
     BusinessRuleViolationException, FintechException
@@ -34,7 +35,7 @@ collective_capital_service = CollectiveCapitalService()
 
 @router.get("/circles", response_model=CircleListResponse)
 async def get_circles(
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     category: Optional[List[InvestmentCategory]] = Query(None, description="Filter by categories"),
     min_pool_value: Optional[float] = Query(None, ge=0, description="Minimum pool value"),
     max_pool_value: Optional[float] = Query(None, gt=0, description="Maximum pool value"),
@@ -88,7 +89,7 @@ async def get_circles(
 @router.get("/circles/{circle_id}", response_model=CircleResponse)
 async def get_circle(
     circle_id: str = Path(..., description="Circle ID"),
-    user_id: str = Query(..., description="User ID")
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     Get detailed information for a specific circle.
@@ -120,7 +121,7 @@ async def get_circle(
 
 @router.post("/circles", response_model=CircleResponse)
 async def create_circle(
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     request: CreateCircleRequest = ...
 ):
     """
@@ -154,7 +155,7 @@ async def create_circle(
 @router.put("/circles/{circle_id}", response_model=CircleResponse)
 async def update_circle(
     circle_id: str = Path(..., description="Circle ID"),
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     request: UpdateCircleRequest = ...
 ):
     """
@@ -191,7 +192,7 @@ async def update_circle(
 @router.post("/circles/{circle_id}/join", response_model=JoinRequestResponse)
 async def join_circle(
     circle_id: str = Path(..., description="Circle ID"),
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     request: JoinCircleRequest = ...
 ):
     """
@@ -224,7 +225,7 @@ async def join_circle(
 
 @router.get("/stats", response_model=CircleStatsResponse)
 async def get_circle_stats(
-    user_id: str = Query(..., description="User ID")
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     Get collective capital statistics.
@@ -251,7 +252,7 @@ async def get_circle_stats(
 @router.post("/circles/{circle_id}/proposals", response_model=ProposalResponse)
 async def create_proposal(
     circle_id: str = Path(..., description="Circle ID"),
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     request: CreateProposalRequest = ...
 ):
     """
@@ -288,7 +289,7 @@ async def create_proposal(
 @router.get("/circles/{circle_id}/proposals", response_model=ProposalListResponse)
 async def get_circle_proposals(
     circle_id: str = Path(..., description="Circle ID"),
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     status: Optional[ProposalStatus] = Query(None, description="Filter by status"),
     limit: int = Query(20, ge=1, le=100, description="Number of results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip")
@@ -334,7 +335,7 @@ async def get_circle_proposals(
 async def vote_on_proposal(
     circle_id: str = Path(..., description="Circle ID"),
     proposal_id: str = Path(..., description="Proposal ID"),
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     request: VoteOnProposalRequest = ...
 ):
     """
@@ -373,7 +374,7 @@ async def vote_on_proposal(
 @router.get("/circles/{circle_id}/ai-recommendations", response_model=AIRecommendationResponse)
 async def get_ai_recommendations(
     circle_id: str = Path(..., description="Circle ID"),
-    user_id: str = Query(..., description="User ID")
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     Get AI recommendations for a circle.
@@ -406,7 +407,7 @@ async def get_ai_recommendations(
 @router.get("/circles/{circle_id}/activities", response_model=ActivityResponse)
 async def get_circle_activities(
     circle_id: str = Path(..., description="Circle ID"),
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     limit: int = Query(20, ge=1, le=100, description="Number of results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip")
 ):
@@ -444,7 +445,7 @@ async def get_circle_activities(
 @router.post("/circles/{circle_id}/contribute", response_model=CircleResponse)
 async def contribute_to_circle(
     circle_id: str = Path(..., description="Circle ID"),
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Depends(get_current_user_id),
     request: ContributeToCircleRequest = ...
 ):
     """
@@ -483,6 +484,7 @@ async def contribute_to_circle(
 @router.get("/user/{user_id}/circles", response_model=CircleListResponse)
 async def get_user_circles(
     user_id: str = Path(..., description="User ID"),
+    current_user_id: str = Depends(get_current_user_id),
     status: Optional[CircleStatus] = Query(None, description="Filter by status"),
     limit: int = Query(20, ge=1, le=100, description="Number of results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip")
@@ -493,6 +495,9 @@ async def get_user_circles(
     Returns circles where the user is an active member
     with optional status filtering.
     """
+    if user_id != current_user_id:
+        raise HTTPException(status_code=403, detail="You can only view your own circles")
+    
     try:
         logger.info(f"API: Getting circles for user {user_id}")
         

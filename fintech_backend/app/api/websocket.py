@@ -6,7 +6,7 @@ Handles WebSocket connections, authentication, and real-time messaging.
 import json
 import logging
 from typing import Optional
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPException, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, HTTPException, status
 from fastapi.responses import HTMLResponse
 
 from ..core.websocket import (
@@ -19,6 +19,7 @@ from ..core.websocket import (
     broadcast_market_update,
     broadcast_system_announcement
 )
+from ..core.auth import require_admin_user
 from ..core.exceptions import AuthenticationError
 
 logger = logging.getLogger(__name__)
@@ -108,7 +109,7 @@ async def websocket_notifications(
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Internal server error")
 
 @router.get("/stats")
-async def get_websocket_stats():
+async def get_websocket_stats(_admin: dict = Depends(require_admin_user)):
     """
     Get WebSocket connection statistics.
     
@@ -128,7 +129,8 @@ async def get_websocket_stats():
 @router.post("/broadcast/notification")
 async def broadcast_notification_endpoint(
     notification_data: dict,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    _admin: dict = Depends(require_admin_user)
 ):
     """
     Broadcast a notification via WebSocket.
@@ -159,7 +161,8 @@ async def broadcast_notification_endpoint(
 @router.post("/broadcast/transaction")
 async def broadcast_transaction_endpoint(
     transaction_data: dict,
-    user_id: str
+    user_id: str,
+    _admin: dict = Depends(require_admin_user)
 ):
     """
     Broadcast a transaction update via WebSocket.
@@ -190,7 +193,8 @@ async def broadcast_transaction_endpoint(
 @router.post("/broadcast/balance")
 async def broadcast_balance_endpoint(
     balance_data: dict,
-    user_id: str
+    user_id: str,
+    _admin: dict = Depends(require_admin_user)
 ):
     """
     Broadcast a balance update via WebSocket.
@@ -221,7 +225,8 @@ async def broadcast_balance_endpoint(
 @router.post("/broadcast/market")
 async def broadcast_market_endpoint(
     market_data: dict,
-    room: str = "market_data"
+    room: str = "market_data",
+    _admin: dict = Depends(require_admin_user)
 ):
     """
     Broadcast market data updates via WebSocket.
@@ -251,7 +256,8 @@ async def broadcast_market_endpoint(
 
 @router.post("/broadcast/announcement")
 async def broadcast_announcement_endpoint(
-    announcement: dict
+    announcement: dict,
+    _admin: dict = Depends(require_admin_user)
 ):
     """
     Broadcast a system announcement via WebSocket.

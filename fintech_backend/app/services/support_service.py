@@ -84,7 +84,7 @@ class SupportService:
         faq_data = [
             {
                 "question": "How do I create an account?",
-                "answer": "To create an account, download the HoardRun app, tap 'Sign Up', enter your phone number, verify with the SMS code, and complete your profile with basic information.",
+                "answer": "To create an account, download the Hoardrun app, tap 'Sign Up', enter your phone number, verify with the SMS code, and complete your profile with basic information.",
                 "category": FAQCategory.GETTING_STARTED,
                 "tags": ["signup", "registration", "account"],
                 "is_featured": True,
@@ -109,7 +109,7 @@ class SupportService:
                 "helpful_count": 52
             },
             {
-                "question": "Is my money safe with HoardRun?",
+                "question": "Is my money safe with Hoardrun?",
                 "answer": "Yes, your money is protected by bank-level security, encryption, and regulatory compliance. We're licensed and regulated by the relevant financial authorities.",
                 "category": FAQCategory.SECURITY_PRIVACY,
                 "tags": ["security", "safety", "protection"],
@@ -141,11 +141,11 @@ class SupportService:
         # Sample help articles
         article_data = [
             {
-                "title": "Getting Started with HoardRun: Complete Guide",
-                "content": "Welcome to HoardRun! This comprehensive guide will walk you through setting up your account, verifying your identity, linking payment methods, and making your first transaction...",
+                "title": "Getting Started with Hoardrun: Complete Guide",
+                "content": "Welcome to Hoardrun! This comprehensive guide will walk you through setting up your account, verifying your identity, linking payment methods, and making your first transaction...",
                 "category": FAQCategory.GETTING_STARTED,
                 "tags": ["guide", "tutorial", "setup"],
-                "author": "HoardRun Support Team",
+                "author": "Hoardrun Support Team",
                 "view_count": 3200,
                 "helpful_count": 245,
                 "estimated_read_time": 8
@@ -501,8 +501,8 @@ class SupportService:
             business_hours="Monday - Friday: 8:00 AM - 6:00 PM EAT",
             emergency_contact="+256-700-123-999",
             social_media={
-                "twitter": "@HoardRunSupport",
-                "facebook": "HoardRunOfficial",
+                "twitter": "@HoardrunSupport",
+                "facebook": "HoardrunOfficial",
                 "linkedin": "company/hoardrun"
             },
             office_address="Plot 123, Kampala Road, Kampala, Uganda",

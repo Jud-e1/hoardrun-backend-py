@@ -74,6 +74,9 @@ class CountryCode(str, Enum):
     NG = "NG"
     ZA = "ZA"
     EG = "EG"
+    GH = "GH"
+    UG = "UG"
+    TZ = "TZ"
 
 
 class Beneficiary(BaseModel):
@@ -119,7 +122,9 @@ class Beneficiary(BaseModel):
     nickname: Optional[str] = Field(None, description="User-defined nickname")
     relationship: Optional[str] = Field(None, description="Relationship to user")
     notes: Optional[str] = Field(None, description="User notes")
-    
+    created_at: Optional[datetime] = Field(None, description="When the beneficiary was added")
+    updated_at: Optional[datetime] = Field(None, description="When the beneficiary last changed")
+
     @validator('email')
     def validate_email_format(cls, v):
         if v and '@' not in v:
@@ -157,6 +162,7 @@ class ExchangeRate(BaseModel):
 class TransferQuote(BaseModel):
     """Transfer cost quote and exchange rate information."""
     quote_id: str = Field(..., description="Unique quote identifier")
+    user_id: Optional[str] = Field(None, description="User the quote was issued to")
     from_amount: Decimal = Field(..., gt=0, description="Source amount")
     from_currency: str = Field(..., description="Source currency")
     to_amount: Decimal = Field(..., gt=0, description="Destination amount after conversion")
@@ -241,6 +247,9 @@ class MoneyTransfer(BaseModel):
     # Compliance and verification
     compliance_check_passed: bool = Field(default=False, description="AML/KYC compliance status")
     requires_documents: bool = Field(default=False, description="Whether additional documents required")
+    failure_reason: Optional[str] = Field(None, description="Why the transfer failed")
+    created_at: Optional[datetime] = Field(None, description="When the record was created")
+    updated_at: Optional[datetime] = Field(None, description="When the record last changed")
     
     @validator('total_cost')
     def validate_total_cost(cls, v, values):

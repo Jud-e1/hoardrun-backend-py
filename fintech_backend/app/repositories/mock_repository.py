@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Any
 from enum import Enum
 
+from .banking_repository import BankingRepositoryMixin
 from .base import BaseRepository, UserFilterableRepository, TransactionRepository
 
 
@@ -205,7 +206,7 @@ class TransactionMockRepository(UserMockRepository, TransactionRepository[Dict])
 
 
 # Repository instances
-class RepositoryManager:
+class RepositoryManager(BankingRepositoryMixin):
     """Central repository manager for all data access."""
     
     def __init__(self):

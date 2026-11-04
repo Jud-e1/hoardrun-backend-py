@@ -1,212 +1,176 @@
 """
-Email service for sending emails using Resend API.
+Hoardrun's emails, sent through Resend.
+
+- Every email has an HTML and a plain-text version, built from one layout, with anything
+  user-provided escaped.
+- Emails about things saved in the database (money in, a bank linked) are queued on the
+  session and sent only after it commits, so a rolled-back change never emails anyone.
+- Without RESEND_API_KEY, development prints the email (codes included) to the server log so
+  sign-up and reset can be tried locally; production logs only that an email was skipped.
 """
+
+import asyncio
+import html
 import logging
-from typing import Optional, Dict, Any
-from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+from typing import Optional
 
 import resend
-from jinja2 import Template
+from sqlalchemy import event
+from sqlalchemy.orm import Session
 
+from ..auth.signing_key import is_production
 from ..config.settings import get_settings
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
+BLUE = "#2f6bff"
+_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="email")
+
+
+# ---------- Sending ----------
+
+def deliver(to: str, subject: str, html_body: str, text_body: str) -> bool:
+    """Send one email now. Returns whether Resend accepted it."""
+    settings = get_settings()
+    if not to or to.endswith(".invalid"):
+        return False
+    if not settings.resend_api_key:
+        if is_production():
+            # Not the subject: a sign-up code is in it
+            logger.warning("RESEND_API_KEY isn't set; skipped an email")
+        else:
+            logger.warning("RESEND_API_KEY isn't set. Email to %s\nSubject: %s\n\n%s", to, subject, text_body)
+        return False
+    resend.api_key = settings.resend_api_key
+    try:
+        resend.Emails.send({"from": settings.email_from, "to": [to], "subject": subject, "html": html_body, "text": text_body})
+        return True
+    except Exception as error:  # Resend's errors vary by version; an email failing must never break the request
+        logger.error("Resend couldn't send an email: %s", error)
+        return False
+
+
+def queue(db: Session, to: str, subject: str, html_body: str, text_body: str) -> None:
+    """Send once this session commits; dropped if it rolls back."""
+    db.info.setdefault("hoardrun_outbox", []).append((to, subject, html_body, text_body))
+
+
+@event.listens_for(Session, "after_commit")
+def _send_outbox(session: Session) -> None:
+    for message in session.info.pop("hoardrun_outbox", []):
+        _pool.submit(deliver, *message)
+
+
+@event.listens_for(Session, "after_rollback")
+def _drop_outbox(session: Session) -> None:
+    session.info.pop("hoardrun_outbox", None)
+
+
+# ---------- Layout ----------
+
+def app_link(path: str = "/") -> str:
+    return get_settings().app_url.rstrip("/") + (path if path.startswith("/") else "/" + path)
+
+
+def layout(heading: str, paragraphs: list[str], *, button: Optional[tuple[str, str]] = None,
+           code: Optional[str] = None, note: Optional[str] = None) -> tuple[str, str]:
+    """(html, text) for one email. Inputs are plain text; they're escaped here."""
+    e = html.escape
+    parts = [f'<p style="margin:0 0 16px;font-size:16px;line-height:24px;color:#3a3a40">{e(p)}</p>' for p in paragraphs]
+    if code:
+        parts.append(
+            f'<div style="margin:8px 0 24px;padding:18px 0;border-radius:16px;background:#f2f5ff;text-align:center;'
+            f'font:600 34px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:10px;color:#111">{e(code)}</div>')
+    if button:
+        label, url = button
+        parts.append(
+            f'<p style="margin:8px 0 24px"><a href="{e(url, quote=True)}" style="display:inline-block;padding:14px 26px;'
+            f'border-radius:999px;background:{BLUE};color:#fff;font-weight:600;font-size:16px;text-decoration:none">{e(label)}</a></p>'
+            f'<p style="margin:0 0 16px;font-size:13px;line-height:20px;color:#8e8e93">Or paste this link into your browser:<br>'
+            f'<span style="word-break:break-all">{e(url)}</span></p>')
+    if note:
+        parts.append(f'<p style="margin:16px 0 0;font-size:13px;line-height:20px;color:#8e8e93">{e(note)}</p>')
+    body = "".join(parts)
+    page = (
+        '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
+        f'<title>{e(heading)}</title></head>'
+        '<body style="margin:0;padding:0;background:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Arial,sans-serif">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:32px 16px">'
+        '<tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">'
+        f'<tr><td style="padding:0 8px 16px;font-size:20px;font-weight:700;letter-spacing:-0.02em;color:{BLUE}">Hoardrun</td></tr>'
+        '<tr><td style="background:#fff;border-radius:24px;padding:32px 28px">'
+        f'<h1 style="margin:0 0 16px;font-size:24px;line-height:30px;letter-spacing:-0.02em;color:#111">{e(heading)}</h1>{body}'
+        '</td></tr>'
+        '<tr><td style="padding:16px 8px;font-size:12px;line-height:18px;color:#8e8e93">'
+        'You got this email because you have a Hoardrun account. Hoardrun will never ask for your password or a code by phone or email.'
+        '</td></tr></table></td></tr></table></body></html>'
+    )
+    text = "\n\n".join([heading, *paragraphs, *( [code] if code else [] ),
+                        *([f"{button[0]}: {button[1]}"] if button else []), *([note] if note else []),
+                        "Hoardrun will never ask for your password or a code by phone or email."])
+    return page, text
+
+
+def hello(name: Optional[str]) -> str:
+    return f"Hi {name}," if name else "Hi,"
+
+
+# ---------- The emails ----------
+
+def verification_email(code: str, name: Optional[str] = None) -> tuple[str, str, str]:
+    subject = f"{code} is your Hoardrun code"
+    page, text = layout("Confirm your email", [hello(name), "Enter this code to finish setting up your Hoardrun account:"],
+                        code=code, note="The code works for 24 hours. If you didn't sign up for Hoardrun, you can ignore this email.")
+    return subject, page, text
+
+
+def reset_email(url: str, name: Optional[str] = None) -> tuple[str, str, str]:
+    page, text = layout("Reset your password", [hello(name), "Someone asked to reset the password for your Hoardrun account. If that was you, choose a new one:"],
+                        button=("Choose a new password", url),
+                        note="The link works once, for 1 hour. If you didn't ask, ignore this email and your password stays the same.")
+    return "Reset your Hoardrun password", page, text
+
+
+def password_changed_email(name: Optional[str] = None) -> tuple[str, str, str]:
+    page, text = layout("Your password was changed", [hello(name), "The password for your Hoardrun account was just changed."],
+                        button=("Open Hoardrun", app_link("/signin")),
+                        note="If this wasn't you, reset your password right away from the sign-in page and contact support.")
+    return "Your Hoardrun password was changed", page, text
+
+
+def event_email(title: str, message: str, link: Optional[str] = None) -> tuple[str, str, str]:
+    page, text = layout(title, [message], button=("Open Hoardrun", app_link(link or "/home")))
+    return f"{title} · Hoardrun", page, text
+
+
+def goodbye_email(name: Optional[str] = None) -> tuple[str, str, str]:
+    page, text = layout("Your account is closed", [hello(name), "Your Hoardrun account is now closed and your personal details have been removed. "
+                        "Records of past transactions are kept as the law requires."],
+                        note="If you didn't close your account, contact Hoardrun support right away.")
+    return "Your Hoardrun account is closed", page, text
+
+
+# ---------- Kept for existing callers ----------
 
 class EmailService:
-    """Service for sending emails using Resend API."""
+    """Async wrappers used by sign-up and password reset."""
 
-    def __init__(self):
-        """Initialize the email service with Resend API key."""
-        self.api_key = settings.resend_api_key
-        if self.api_key:
-            resend.api_key = self.api_key
-        else:
-            logger.warning("Resend API key not configured")
+    async def send_email(self, to: str, subject: str, html_content: str, text_content: Optional[str] = None, **_) -> bool:
+        return await asyncio.to_thread(deliver, to, subject, html_content, text_content or subject)
 
-    async def send_email(
-        self,
-        to: str,
-        subject: str,
-        html_content: str,
-        from_email: Optional[str] = None,
-        text_content: Optional[str] = None,
-        **kwargs
-    ) -> bool:
-        """
-        Send an email using Resend API.
+    async def send_verification_email(self, to: str, verification_token: str, user_name: Optional[str] = None) -> bool:
+        return await asyncio.to_thread(deliver, to, *verification_email(verification_token, user_name))
 
-        Args:
-            to: Recipient email address
-            subject: Email subject
-            html_content: HTML content of the email
-            from_email: Sender email address (optional)
-            text_content: Plain text content (optional)
-            **kwargs: Additional parameters for Resend API
+    async def send_password_reset_email(self, to: str, reset_token: str, user_name: Optional[str] = None) -> bool:
+        return await asyncio.to_thread(deliver, to, *reset_email(app_link(f"/reset-password?token={reset_token}"), user_name))
 
-        Returns:
-            bool: True if email was sent successfully, False otherwise
-        """
-        if not self.api_key:
-            logger.warning("Resend API key not configured, skipping email send")
-            return False
-
-        try:
-            sender = from_email or settings.email_from
-
-            params = {
-                "from": sender,
-                "to": [to],
-                "subject": subject,
-                "html": html_content,
-                **kwargs
-            }
-
-            if text_content:
-                params["text"] = text_content
-
-            response = resend.Emails.send(params)
-            logger.info(f"Email sent successfully to {to}: {response}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to send email to {to}: {str(e)}")
-            return False
-
-    async def send_verification_email(
-        self,
-        to: str,
-        verification_token: str,
-        user_name: Optional[str] = None
-    ) -> bool:
-        """
-        Send email verification email.
-
-        Args:
-            to: Recipient email address
-            verification_token: Email verification token
-            user_name: User's name (optional)
-
-        Returns:
-            bool: True if email was sent successfully, False otherwise
-        """
-        subject = settings.email_verification_subject
-
-        # Simple HTML template for verification email with code display
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <title>{subject}</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h2>Welcome to {settings.app_name}!</h2>
-
-                <p>Hello{user_name and f' {user_name}' or ''},</p>
-
-                <p>Thank you for signing up! Please verify your email address by entering the verification code below:</p>
-
-                <div style="text-align: center; margin: 30px 0;">
-                    <div style="background-color: #f8f9fa; border: 2px solid #007bff; border-radius: 8px;
-                                padding: 20px; display: inline-block; font-size: 24px; font-weight: bold;
-                                letter-spacing: 4px; color: #007bff;">
-                        {verification_token}
-                    </div>
-                </div>
-
-                <p style="text-align: center; margin: 20px 0;">
-                    Enter this code on the verification page to complete your registration.
-                </p>
-
-                <p>This code will expire in 24 hours.</p>
-
-                <p>If you didn't create an account, please ignore this email.</p>
-
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-
-                <p style="color: #666; font-size: 12px;">
-                    This is an automated message from {settings.app_name}. Please do not reply to this email.
-                </p>
-            </div>
-        </body>
-        </html>
-        """
-
-        return await self.send_email(to, subject, html_content)
-
-    async def send_password_reset_email(
-        self,
-        to: str,
-        reset_token: str,
-        user_name: Optional[str] = None
-    ) -> bool:
-        """
-        Send password reset email.
-
-        Args:
-            to: Recipient email address
-            reset_token: Password reset token
-            user_name: User's name (optional)
-
-        Returns:
-            bool: True if email was sent successfully, False otherwise
-        """
-        subject = settings.email_password_reset_subject
-
-        # Create reset URL (adjust the URL pattern as needed)
-        reset_url = f"https://hoardrun.vercel.app/reset-password?token={reset_token}"
-
-        # Simple HTML template for password reset email
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <title>{subject}</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h2>Password Reset Request</h2>
-
-                <p>Hello{user_name and f' {user_name}' or ''},</p>
-
-                <p>We received a request to reset your password. Click the link below to create a new password:</p>
-
-                <div style="text-align: center; margin: 30px 0;">
-                    <a href="{reset_url}"
-                       style="background-color: #dc3545; color: white; padding: 12px 24px;
-                              text-decoration: none; border-radius: 5px; display: inline-block;">
-                        Reset Password
-                    </a>
-                </div>
-
-                <p>If the button doesn't work, you can also copy and paste this link into your browser:</p>
-                <p style="word-break: break-all; color: #666;">{reset_url}</p>
-
-                <p>This link will expire in 1 hour.</p>
-
-                <p>If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
-
-                <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-
-                <p style="color: #666; font-size: 12px;">
-                    This is an automated message from {settings.app_name}. Please do not reply to this email.
-                </p>
-            </div>
-        </body>
-        </html>
-        """
-
-        return await self.send_email(to, subject, html_content)
+    async def send_password_changed_email(self, to: str, user_name: Optional[str] = None) -> bool:
+        return await asyncio.to_thread(deliver, to, *password_changed_email(user_name))
 
 
-# Global email service instance
 email_service = EmailService()
 
 
 def get_email_service() -> EmailService:
-    """Get email service instance."""
     return email_service

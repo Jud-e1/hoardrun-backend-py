@@ -89,8 +89,9 @@ class PasswordChangeRequest(BaseModel):
 
 
 class EmailVerificationRequest(BaseModel):
-    """Email verification request model."""
-    token: str = Field(..., description="Email verification token")
+    """Email verification request: the 6-digit code and the email it was sent to."""
+    token: str = Field(..., max_length=20, description="The 6-digit code")
+    email: Optional[str] = Field(None, max_length=320, description="The email the code was sent to")
 
 
 class UserProfileUpdateRequest(BaseModel):

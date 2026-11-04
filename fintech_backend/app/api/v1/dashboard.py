@@ -27,6 +27,12 @@ limiter = get_rate_limiter()
 logger = get_logger(__name__)
 
 
+def require_own_user(user_id: str, current_user: dict) -> None:
+    """Only allow access to the authenticated user's own dashboard data."""
+    if user_id != current_user["user_id"]:
+        raise HTTPException(status_code=403, detail="You can only access your own dashboard")
+
+
 @router.get(
     "",
     response_model=DashboardSummaryResponse,
@@ -75,6 +81,7 @@ async def get_current_user_dashboard(
 async def get_dashboard_summary(
     request: Request,
     user_id: str,
+    current_user = Depends(get_current_user),
     include_pending: bool = Query(default=True, description="Include pending transactions"),
     date_range_days: int = Query(default=30, ge=1, le=365, description="Date range for recent data"),
     dashboard_service = Depends(get_dashboard_service)
@@ -88,6 +95,8 @@ async def get_dashboard_summary(
     - **include_pending**: Whether to include pending transactions in recent activity
     - **date_range_days**: Number of days to look back for recent data (1-365)
     """
+    require_own_user(user_id, current_user)
+    
     try:
         # Validate user ID
         validated_user_id = validate_user_id(user_id)
@@ -117,6 +126,7 @@ async def get_dashboard_summary(
 async def get_spending_analytics(
     request: Request,
     user_id: str,
+    current_user = Depends(get_current_user),
     period_days: int = Query(default=30, ge=1, le=365, description="Analysis period in days"),
     category_filter: Optional[str] = Query(default=None, description="Comma-separated list of categories to filter"),
     include_trends: bool = Query(default=True, description="Include monthly trend analysis"),
@@ -132,6 +142,8 @@ async def get_spending_analytics(
     - **category_filter**: Optional comma-separated categories to filter by
     - **include_trends**: Whether to include monthly spending trends
     """
+    require_own_user(user_id, current_user)
+    
     try:
         # Validate user ID
         validated_user_id = validate_user_id(user_id)
@@ -167,6 +179,7 @@ async def get_spending_analytics(
 async def get_notifications(
     request: Request,
     user_id: str,
+    current_user = Depends(get_current_user),
     unread_only: bool = Query(default=False, description="Return only unread notifications"),
     notification_type: Optional[NotificationType] = Query(default=None, description="Filter by notification type"),
     limit: int = Query(default=20, ge=1, le=100, description="Maximum number of notifications"),
@@ -182,6 +195,8 @@ async def get_notifications(
     - **notification_type**: Optional notification type filter
     - **limit**: Maximum number of notifications to return (1-100)
     """
+    require_own_user(user_id, current_user)
+    
     try:
         # Validate user ID
         validated_user_id = validate_user_id(user_id)
@@ -212,6 +227,7 @@ async def get_notifications(
 async def mark_notifications_read(
     request: Request,
     user_id: str,
+    current_user = Depends(get_current_user),
     request_body: NotificationMarkReadRequest = Body(..., description="Notification IDs to mark as read"),
     dashboard_service = Depends(get_dashboard_service)
 ):
@@ -223,6 +239,8 @@ async def mark_notifications_read(
     - **user_id**: User identifier
     - **notification_ids**: List of notification IDs to mark as read
     """
+    require_own_user(user_id, current_user)
+    
     try:
         # Validate user ID
         validated_user_id = validate_user_id(user_id)

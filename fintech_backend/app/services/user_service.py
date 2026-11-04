@@ -8,7 +8,6 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from fastapi import UploadFile
-from passlib.context import CryptContext
 
 from ..models.auth import (
     UserProfile, UserProfileUpdateRequest, UserSettingsUpdateRequest,
@@ -18,6 +17,7 @@ from ..services.auth_service import AuthService
 from ..core.exceptions import (
     ValidationException, AuthenticationException, UserNotFoundException
 )
+from ..auth import passwords
 from ..config.settings import get_settings
 from ..config.logging import get_logger
 
@@ -25,7 +25,6 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class UserService:
@@ -258,9 +257,7 @@ class UserService:
     
     def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash."""
-        # Truncate password to 72 bytes to match bcrypt's limitation
-        truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-        return pwd_context.verify(truncated_password, hashed_password)
+        return passwords.verify_password(plain_password, hashed_password)
     
     async def get_all_users(self, db: Session) -> list:
         """

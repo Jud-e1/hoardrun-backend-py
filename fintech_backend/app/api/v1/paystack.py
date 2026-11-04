@@ -6,6 +6,10 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+
+from ...database.config import get_db
+from ...services.deposit_ledger import credit_paystack_charge
 
 from ...auth.dependencies import get_current_user
 from ...models.auth import User
@@ -40,6 +44,10 @@ async def initialize_payment(
     This endpoint creates a new payment transaction and returns the authorization URL
     where the user should be redirected to complete the payment.
     """
+    from ...config.settings import get_settings
+    if not get_settings().paystack_secret_key:
+        raise HTTPException(status_code=503, detail="Card payments aren't set up yet")
+
     try:
         service = get_paystack_service()
         
@@ -69,23 +77,34 @@ async def initialize_payment(
 @router.get("/verify/{reference}", response_model=PaymentVerificationResponse)
 async def verify_payment(
     reference: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
-    Verify a payment transaction using its reference.
-    
-    This endpoint checks the status of a payment transaction with Paystack
-    and returns the current status and details.
+    Verify a payment with Paystack and, once it has succeeded, add it to the
+    user's Hoardrun cash. Verifying the same payment again never adds it twice.
     """
+    from ...config.settings import get_settings
+    if not get_settings().paystack_secret_key:
+        raise HTTPException(status_code=503, detail="Card payments aren't set up yet")
+
     try:
         service = get_paystack_service()
-        
+
         result = await service.verify_payment(reference)
-        
-        logger.info(f"Payment verified for user {current_user.id}: {reference}")
-        
+
+        try:
+            credited = credit_paystack_charge(db, result.transaction.model_dump(mode="json"), expected_user_id=str(current_user.id))
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="This payment belongs to a different account")
+        if credited:
+            logger.info(f"Deposit {reference} {'credited' if credited[1] else 'was already credited'} for user {current_user.id}")
+
         return result
-        
+
+    except HTTPException:
+        raise
+
     except ExternalServiceException as e:
         logger.error(f"Payment verification failed: {e}")
         raise HTTPException(status_code=502, detail=str(e))
@@ -187,7 +206,7 @@ async def get_paystack_config(
     to integrate with Paystack.
     """
     try:
-        from ..config.settings import get_settings
+        from ...config.settings import get_settings
         settings = get_settings()
         
         return {
@@ -217,7 +236,7 @@ async def paystack_health_check():
     Checks if the Paystack service is properly configured and accessible.
     """
     try:
-        from ..config.settings import get_settings
+        from ...config.settings import get_settings
         settings = get_settings()
         
         # Basic configuration check

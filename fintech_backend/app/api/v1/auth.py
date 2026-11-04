@@ -2,6 +2,9 @@
 Authentication API endpoints for user registration, login, and profile management.
 """
 
+from urllib.parse import quote
+
+from ...config.settings import get_settings
 from fastapi import APIRouter, HTTPException, Depends, status, Body, Request, Query, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -43,19 +46,19 @@ async def register_user(
 ):
     """
     Register a new user account.
-    
+
     Creates a new user account with email verification.
     """
     try:
         logger.info(f"API: Registering new user with email {request.email}")
-        
+
         user = await auth_service.register_user(request, db)
-        
+
         return success_response(
             data={"user": user},
             message="User registered successfully. Please check your email for verification."
         )
-        
+
     except EmailAlreadyExistsException as e:
         logger.error(f"Email already exists: {e}")
         raise HTTPException(status_code=409, detail=str(e))
@@ -124,20 +127,20 @@ async def logout_user(
 ):
     """
     Logout user and invalidate tokens.
-    
+
     Invalidates the current access token and refresh token.
     """
     try:
         logger.info("API: User logout")
-        
+
         token = credentials.credentials
         result = await auth_service.logout_user(token, db)
-        
+
         return success_response(
             data=result,
             message="Logout successful"
         )
-        
+
     except AuthorizationException as e:
         logger.error(f"Authorization error: {e}")
         raise HTTPException(status_code=403, detail=str(e))
@@ -154,19 +157,19 @@ async def refresh_token(
 ):
     """
     Refresh access token using refresh token.
-    
+
     Generates new access token from valid refresh token.
     """
     try:
         logger.info("API: Token refresh")
-        
+
         result = await auth_service.refresh_access_token(refresh_token, db)
-        
+
         return success_response(
             data=result,
             message="Token refreshed successfully"
         )
-        
+
     except AuthenticationException as e:
         logger.error(f"Token refresh failed: {e}")
         raise HTTPException(status_code=401, detail=str(e))
@@ -177,44 +180,19 @@ async def refresh_token(
 
 @router.get("/verify-email")
 async def verify_email_get(
-    token: str = Query(..., description="Email verification token"),
+    token: str = Query(..., description="Email verification code"),
+    email: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """
-    Handle email verification link clicks from email.
-    This endpoint is called directly when users click the verification link.
-    """
+    """A verification link: confirms the email and sends the person on to the app."""
+    base = get_settings().app_url.rstrip("/")
     try:
-        logger.info(f"API: Email verification GET for token {token[:10]}...")
-
-        result = await auth_service.verify_email(token, db)
-
-        if result.get("verified"):
-            # Redirect to verify-email page with success
-            return RedirectResponse(
-                url=f"https://hoardrun.vercel.app/verify-email?token={token}&success=true",
-                status_code=302
-            )
-        else:
-            # Redirect to verify-email page with error
-            return RedirectResponse(
-                url=f"https://hoardrun.vercel.app/verify-email?token={token}&error=failed",
-                status_code=302
-            )
-
-    except ValidationException as e:
-        logger.error(f"Email verification failed: {e}")
-        return RedirectResponse(
-            url=f"https://hoardrun.vercel.app/verify-email?token={token}&error=invalid_token",
-            status_code=302
-        )
-    except Exception as e:
-        logger.error(f"Error verifying email: {e}")
-        return RedirectResponse(
-            url=f"https://hoardrun.vercel.app/verify-email?token={token}&error=server_error",
-            status_code=302
-        )
+        await auth_service.verify_email(token, db, email)
+        return RedirectResponse(url=f"{base}/signin?verified=true", status_code=302)
+    except ValidationException:
+        target = f"{base}/check-email?email={quote(email)}&error=invalid" if email else f"{base}/signup"
+        return RedirectResponse(url=target, status_code=302)
 
 
 @router.post("/verify-email", response_model=dict)
@@ -223,69 +201,23 @@ async def verify_email_post(
     db: Session = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """
-    Handle email verification via POST (for API calls).
-
-    Confirms email address using verification token.
-    """
+    """Confirm an email with the 6-digit code sent to it (the code and the email together)."""
     try:
-        logger.info(f"API: Email verification POST for token {request.token[:10]}...")
-
-        result = await auth_service.verify_email(request.token, db)
-
-        return success_response(
-            data=result,
-            message="Email verified successfully"
-        )
-
+        result = await auth_service.verify_email(request.token, db, request.email)
+        return success_response(data=result, message="Email verified successfully")
     except ValidationException as e:
-        logger.error(f"Email verification failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error verifying email: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/resend-verification", response_model=dict)
 async def resend_verification_email(
-    background_tasks: BackgroundTasks,
     email: str = Body(..., embed=True),
     db: Session = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """
-    Resend email verification.
-
-    Sends a new verification email to the user.
-    """
-    try:
-        logger.info(f"API: Resending verification email to {email}")
-
-        result = await auth_service.resend_verification_email(email, db)
-
-        # Add background task to send email
-        if result.get("sent"):
-            verification_code = auth_service._generate_verification_code()
-            background_tasks.add_task(
-                auth_service.send_verification_email_background,
-                email,
-                verification_code
-            )
-
-        return success_response(
-            data=result,
-            message="Verification email sent successfully"
-        )
-
-    except UserNotFoundException as e:
-        logger.error(f"User not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValidationException as e:
-        logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error resending verification: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    """Send a new code. The answer never says whether the email has an account."""
+    await auth_service.resend_verification_email(email.strip(), db)
+    return success_response(data={"sent": True}, message="If that email is waiting to be confirmed, a new code is on its way.")
 
 
 @router.post("/forgot-password", response_model=dict)
@@ -294,61 +226,34 @@ async def forgot_password(
     db: Session = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """
-    Request password reset.
-    
-    Sends password reset email to user.
-    """
-    try:
-        logger.info(f"API: Password reset request for {request.email}")
-        
-        result = await auth_service.request_password_reset(request.email, db)
-        
-        return success_response(
-            data=result,
-            message="Password reset email sent successfully"
-        )
-        
-    except UserNotFoundException as e:
-        logger.error(f"User not found: {e}")
-        # Don't reveal if email exists for security
-        return success_response(
-            data={"sent": False},
-            message="If the email exists, a password reset link has been sent"
-        )
-    except Exception as e:
-        logger.error(f"Error requesting password reset: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    """Email a reset link. The answer never says whether the email has an account."""
+    await auth_service.request_password_reset(str(request.email), db)
+    return success_response(data={"sent": True}, message="If there's an account for that email, a reset link is on its way.")
+
+
+@router.get("/reset-password/check", response_model=dict)
+async def check_reset_link(
+    token: str = Query(..., min_length=10, max_length=200),
+    db: Session = Depends(get_db),
+    auth_service: AuthService = Depends(get_auth_service)
+):
+    """Whether a reset link still works, so the page can say so before a new password is typed."""
+    return success_response(data={"valid": auth_service.reset_link_is_live(token, db)})
 
 
 @router.post("/reset-password", response_model=dict)
 async def reset_password(
-    token: str = Body(...),
-    new_password: str = Body(...),
+    token: str = Body(..., min_length=10, max_length=200),
+    new_password: str = Body(..., max_length=200),
     db: Session = Depends(get_db),
     auth_service: AuthService = Depends(get_auth_service)
 ):
-    """
-    Reset password using reset token.
-    
-    Updates user password using valid reset token.
-    """
+    """Set a new password with a one-time reset link."""
     try:
-        logger.info(f"API: Password reset with token {token[:10]}...")
-        
         result = await auth_service.reset_password(token, new_password, db)
-        
-        return success_response(
-            data=result,
-            message="Password reset successfully"
-        )
-        
+        return success_response(data=result, message="Password reset successfully")
     except ValidationException as e:
-        logger.error(f"Password reset failed: {e}")
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error resetting password: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/me", response_model=UserResponse)
@@ -359,20 +264,20 @@ async def get_current_user(
 ):
     """
     Get current user profile.
-    
+
     Returns authenticated user's profile information.
     """
     try:
         logger.info("API: Getting current user profile")
-        
+
         token = credentials.credentials
         user = await auth_service.get_current_user(token, db)
-        
+
         return success_response(
             data={"user": user},
             message="User profile retrieved successfully"
         )
-        
+
     except AuthenticationException as e:
         logger.error(f"Authentication failed: {e}")
         raise HTTPException(status_code=401, detail=str(e))
@@ -390,20 +295,20 @@ async def update_current_user(
 ):
     """
     Update current user profile.
-    
+
     Updates authenticated user's profile information.
     """
     try:
         logger.info("API: Updating current user profile")
-        
+
         token = credentials.credentials
         user = await auth_service.update_user_profile(token, request, db)
-        
+
         return success_response(
             data={"user": user},
             message="User profile updated successfully"
         )
-        
+
     except AuthenticationException as e:
         logger.error(f"Authentication failed: {e}")
         raise HTTPException(status_code=401, detail=str(e))
@@ -424,20 +329,20 @@ async def change_password(
 ):
     """
     Change user password.
-    
+
     Updates user password after verifying current password.
     """
     try:
         logger.info("API: Changing user password")
-        
+
         token = credentials.credentials
         result = await auth_service.change_password(token, request, db)
-        
+
         return success_response(
             data=result,
             message="Password changed successfully"
         )
-        
+
     except AuthenticationException as e:
         logger.error(f"Authentication failed: {e}")
         raise HTTPException(status_code=401, detail=str(e))

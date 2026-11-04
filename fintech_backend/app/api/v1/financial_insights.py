@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 
-from ...core.database import get_db
+from ...database.config import get_db
 from ...core.auth import get_current_user
 from app.database import get_db as get_db_alt  # financial_health used a different import path
 

@@ -58,34 +58,44 @@ class DashboardService:
                 user_id=user_id
             )
             
-            # Get user accounts
-            user_accounts = await self.accounts_repo.get_by_user_id(user_id)
-            if not user_accounts:
-                logger.warning(f"No accounts found for user {user_id}")
-                user_accounts = []
-            
-            # Calculate balance totals
-            total_balance = sum(Decimal(str(acc.get("balance", 0))) for acc in user_accounts)
-            available_balance = sum(Decimal(str(acc.get("available_balance", 0))) for acc in user_accounts)
-            
-            # Get investment portfolio value
-            user_investments = await self.investments_repo.get_by_user_id(user_id)
-            investment_value = sum(
-                Decimal(str(inv.get("market_value", 0))) for inv in user_investments
-            )
-            
-            # Calculate total assets and liabilities (simplified)
-            total_assets = total_balance + investment_value
-            total_liabilities = Decimal("0.00")  # Mock - would include credit card debt, loans, etc.
-            
-            # Format financial summary
+            # Real cash accounts: the balances deposits credit and fund purchases spend
+            from ..database.config import SessionLocal
+            from ..database.models import Account, AccountStatusEnum
+            with SessionLocal() as db:
+                user_accounts = [
+                    {
+                        "id": account.id,
+                        "account_name": account.account_name,
+                        "account_type": account.account_type.value,
+                        "currency": account.currency,
+                        "balance": account.current_balance,
+                        "available_balance": account.available_balance,
+                    }
+                    for account in db.query(Account).filter(
+                        Account.user_id == user_id,
+                        Account.status == AccountStatusEnum.ACTIVE,
+                        Account.currency == "USD",
+                    )
+                ]
+
+            # Cash, savings and investments from the database, so moving money between them keeps net worth the same
+            from .wealth import wealth
+            with SessionLocal() as db:
+                owned = wealth(db, user_id)
+            total_balance = owned["cash"]
+            available_balance = owned["available"]
+            total_assets = owned["net_worth"]
+            total_liabilities = Decimal("0.00")  # No credit products yet
+
             financial_summary = DashboardFormatter.format_financial_summary(
                 total_balance=total_balance,
                 available_balance=available_balance,
                 total_assets=total_assets,
                 total_liabilities=total_liabilities
             )
-            
+            financial_summary["assets"]["savings"] = FinancialFormatter.format_currency_amount(owned["savings"])
+            financial_summary["assets"]["investments"] = FinancialFormatter.format_currency_amount(owned["investments"])
+
             # Get recent transactions
             cutoff_date = datetime.now(UTC) - timedelta(days=date_range_days)
             recent_transactions_data = await self.transactions_repo.get_by_date_range(

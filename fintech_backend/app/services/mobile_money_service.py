@@ -56,7 +56,7 @@ class MobileMoneyService:
             # Validate provider and amount limits
             provider_info = await self._get_provider_info(request.provider, db)
             if not provider_info.is_active:
-                raise BusinessLogicError(f"Provider {request.provider} is not available")
+                raise BusinessLogicError("provider_unavailable", f"Provider {request.provider} is not available")
             
             if request.amount < provider_info.min_amount or request.amount > provider_info.max_amount:
                 raise ValidationException(f"Amount must be between {provider_info.min_amount} and {provider_info.max_amount}")
@@ -117,7 +117,7 @@ class MobileMoneyService:
             # Validate provider
             provider_info = await self._get_provider_info(request.provider, db)
             if not provider_info.is_active:
-                raise BusinessLogicError(f"Provider {request.provider} is not available")
+                raise BusinessLogicError("provider_unavailable", f"Provider {request.provider} is not available")
             
             # Calculate fees
             fee_calculation = await self._calculate_transaction_fees(
@@ -174,7 +174,7 @@ class MobileMoneyService:
             # Validate provider
             provider_info = await self._get_provider_info(request.provider, db)
             if not provider_info.is_active:
-                raise BusinessLogicError(f"Provider {request.provider} is not available")
+                raise BusinessLogicError("provider_unavailable", f"Provider {request.provider} is not available")
             
             # Calculate fees
             fee_calculation = await self._calculate_transaction_fees(
@@ -260,7 +260,7 @@ class MobileMoneyService:
             # Validate provider
             provider_info = await self._get_provider_info(request.provider, db)
             if not provider_info.is_active:
-                raise BusinessLogicError(f"Provider {request.provider} is not available")
+                raise BusinessLogicError("provider_unavailable", f"Provider {request.provider} is not available")
             
             # Verify account with provider (mock implementation)
             account_info = await self._verify_account_with_provider(request, db)
@@ -615,8 +615,8 @@ class MobileMoneyService:
                 await self._update_transaction_status(transaction.id, TransactionStatus.FAILED, db)
                 raise
         else:
-            # Use mock implementation for other providers
-            logger.info(f"Using mock implementation for provider: {transaction.provider}")
+            # No integration exists for other providers, so nothing can actually move
+            raise ValidationException("This mobile money provider isn't available yet")
     
     async def _initiate_provider_collection(self, transaction: MobileMoneyTransaction, db: Session) -> None:
         """Initiate collection request with provider."""
@@ -646,8 +646,8 @@ class MobileMoneyService:
                 await self._update_transaction_status(transaction.id, TransactionStatus.FAILED, db)
                 raise
         else:
-            # Use mock implementation for other providers
-            logger.info(f"Using mock implementation for provider: {transaction.provider}")
+            # No integration exists for other providers, so nothing can actually move
+            raise ValidationException("This mobile money provider isn't available yet")
     
     async def _initiate_provider_deposit(self, transaction: MobileMoneyTransaction, db: Session) -> None:
         """Initiate deposit with provider."""
@@ -677,8 +677,8 @@ class MobileMoneyService:
                 await self._update_transaction_status(transaction.id, TransactionStatus.FAILED, db)
                 raise
         else:
-            # Use mock implementation for other providers
-            logger.info(f"Using mock implementation for provider: {transaction.provider}")
+            # No integration exists for other providers, so nothing can actually move
+            raise ValidationException("This mobile money provider isn't available yet")
     
     async def _verify_account_with_provider(self, request: MobileMoneyAccountRequest, db: Session) -> Optional[Dict[str, Any]]:
         """Verify account with provider."""

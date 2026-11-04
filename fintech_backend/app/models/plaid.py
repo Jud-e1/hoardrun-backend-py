@@ -20,11 +20,16 @@ class PlaidConnectionStatus(str, Enum):
     ACTIVE = "active"
     ERROR = "error"
     DISCONNECTED = "disconnected"
+    NEEDS_UPDATE = "needs_update"
 
 
 class PlaidLinkTokenRequest(BaseModel):
     """Request model for creating Plaid link tokens."""
-    client_name: Optional[str] = Field(default="HoardRun", description="Name of the client application")
+    client_name: Optional[str] = Field(default="Hoardrun", description="Name of the client application")
+    products: Optional[List[str]] = Field(default=None, description="Plaid products to request")
+    country_codes: Optional[List[str]] = Field(default=None, description="Countries to offer banks from")
+    language: Optional[str] = Field(default=None, description="Language for Plaid Link")
+    webhook_url: Optional[str] = Field(default=None, description="Webhook for updates")
 
 
 class PlaidLinkTokenResponse(BaseModel):
@@ -32,6 +37,7 @@ class PlaidLinkTokenResponse(BaseModel):
     link_token: str = Field(..., description="Plaid link token")
     expiration: str = Field(..., description="Token expiration timestamp")
     link_token_id: str = Field(..., description="Internal link token identifier")
+    request_id: Optional[str] = Field(default=None, description="Plaid request ID")
 
 
 class PlaidExchangeTokenRequest(BaseModel):
@@ -43,7 +49,6 @@ class PlaidExchangeTokenRequest(BaseModel):
 class PlaidExchangeTokenResponse(BaseModel):
     """Response model for token exchange."""
     connection_id: str = Field(..., description="Internal connection identifier")
-    access_token: str = Field(..., description="Plaid access token")
     item_id: str = Field(..., description="Plaid item ID")
 
 
@@ -95,6 +100,17 @@ class PlaidConnection(BaseModel):
     institution_id: Optional[str] = Field(default=None, description="Institution identifier")
     institution_name: Optional[str] = Field(default=None, description="Institution name")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Connection creation timestamp")
+    last_synced_at: Optional[datetime] = Field(default=None, description="Last sync timestamp")
+    error_message: Optional[str] = Field(default=None, description="Last error message")
+
+
+class PlaidConnectionPublic(BaseModel):
+    """A Plaid connection as shown to its owner. The access token stays on the server."""
+    connection_id: str = Field(..., description="Internal connection identifier")
+    status: PlaidConnectionStatus = Field(..., description="Connection status")
+    institution_id: Optional[str] = Field(default=None, description="Institution identifier")
+    institution_name: Optional[str] = Field(default=None, description="Institution name")
+    created_at: datetime = Field(..., description="Connection creation timestamp")
     last_synced_at: Optional[datetime] = Field(default=None, description="Last sync timestamp")
     error_message: Optional[str] = Field(default=None, description="Last error message")
 

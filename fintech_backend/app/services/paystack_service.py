@@ -194,10 +194,14 @@ class PaystackService:
         amount = data.get("amount", 0) / 100  # Convert from kobo
         
         logger.info(f"Payment successful: {reference}, amount: {amount}")
-        
-        # TODO: Update database, credit user account, send notifications
-        # await self._update_transaction_status(reference, "success")
-        # await self._credit_user_account(data)
+
+        # Webhook payloads carry the same charge object as verification; crediting is idempotent
+        from ..database.config import SessionLocal
+        from .deposit_ledger import credit_paystack_charge
+        with SessionLocal() as db:
+            credited = credit_paystack_charge(db, data)
+        if credited is None:
+            logger.warning(f"Paystack charge {reference} had no Hoardrun user, so nothing was credited")
         # await self._send_payment_notification(data)
     
     async def _handle_failed_payment(self, data: Dict[str, Any]):

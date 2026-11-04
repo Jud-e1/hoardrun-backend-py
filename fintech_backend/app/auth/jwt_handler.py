@@ -3,16 +3,15 @@ JWT token handling for authentication and authorization.
 """
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+import jwt
+from jwt import InvalidTokenError as JWTError
 from fastapi import HTTPException, status
 import os
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from . import passwords
+from .signing_key import jwt_secret
 
 # JWT settings
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
@@ -24,33 +23,13 @@ class JWTHandler:
     @staticmethod
     def hash_password(password: str) -> str:
         """Hash a password using bcrypt."""
-        # Truncate password to 72 bytes to match bcrypt's limitation
-        truncated_password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-        return pwd_context.hash(truncated_password)
-    
+        return passwords.hash_password(password)
+
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
-        """Verify a password against its hash."""
-        # Check if hashed_password is a bcrypt hash (starts with $2a$ or $2b$)
-        if hashed_password.startswith(('$2a$', '$2b$')):
-            # Always truncate password to 72 bytes to match bcrypt's limitation
-            # This ensures we never get the "password cannot be longer than 72 bytes" error
-            truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+        """Check a password against its bcrypt hash. Anything else never matches."""
+        return passwords.verify_password(plain_password, hashed_password)
 
-            # Try with 72-byte truncation (for new accounts created after truncation was implemented)
-            if pwd_context.verify(truncated_password, hashed_password):
-                return True
-
-            # If that fails, try with 50-byte truncation as fallback (for edge cases)
-            truncated_50 = plain_password.encode('utf-8')[:50].decode('utf-8', errors='ignore')
-            if pwd_context.verify(truncated_50, hashed_password):
-                return True
-
-            return False
-        else:
-            # If not a bcrypt hash, assume it's plain text and compare directly
-            return plain_password == hashed_password
-    
     @staticmethod
     def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
         """Create a JWT access token."""
@@ -61,7 +40,7 @@ class JWTHandler:
             expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         
         to_encode.update({"exp": expire, "type": "access"})
-        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        encoded_jwt = jwt.encode(to_encode, jwt_secret(), algorithm=ALGORITHM)
         return encoded_jwt
     
     @staticmethod
@@ -70,17 +49,18 @@ class JWTHandler:
         to_encode = data.copy()
         expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         to_encode.update({"exp": expire, "type": "refresh"})
-        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        encoded_jwt = jwt.encode(to_encode, jwt_secret(), algorithm=ALGORITHM)
         return encoded_jwt
     
     @staticmethod
     def verify_token(token: str, token_type: str = "access") -> Dict[str, Any]:
         """Verify and decode a JWT token."""
         try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            payload = jwt.decode(token, jwt_secret(), algorithms=[ALGORITHM])
             
             # Check token type
-            if payload.get("type") != token_type:
+            # Login tokens carry "token_type"; refresh tokens carry "type"
+            if (payload.get("type") or payload.get("token_type")) != token_type:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid token type",
@@ -96,7 +76,7 @@ class JWTHandler:
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             
-            if datetime.utcnow() > datetime.fromtimestamp(exp):
+            if datetime.utcnow() > datetime.utcfromtimestamp(exp):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Token expired",

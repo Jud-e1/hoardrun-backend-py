@@ -9,11 +9,11 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from ...models.plaid import (
     PlaidLinkTokenRequest, PlaidLinkTokenResponse,
     PlaidExchangeTokenRequest, PlaidExchangeTokenResponse,
-    PlaidAccount, PlaidTransaction, PlaidConnection,
+    PlaidAccount, PlaidTransaction, PlaidConnection, PlaidConnectionPublic,
     PlaidSyncRequest, PlaidSyncResponse
 )
 from ...services.plaid_service import get_plaid_service, PlaidService
-from ...auth.dependencies import get_current_user_id, get_current_user
+from ...auth.dependencies import get_current_user_id
 from ...config.logging import get_logger
 
 logger = get_logger(__name__)
@@ -31,6 +31,9 @@ async def create_link_token(
     Create a Plaid Link token for connecting bank accounts.
     This creates an actual Plaid link session.
     """
+    if not service.plaid_client.configured:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bank linking isn't set up yet")
+
     try:
         logger.info(f"Creating link token for user {user_id}")
         response = await service.create_link_token(user_id, request)
@@ -53,6 +56,9 @@ async def exchange_public_token(
     Exchange a public token for an access token and create connection.
     This establishes the actual connection with Plaid.
     """
+    if not service.plaid_client.configured:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Bank linking isn't set up yet")
+
     try:
         logger.info(f"Exchanging public token for user {user_id}")
         response = await service.exchange_public_token(user_id, request)
@@ -88,11 +94,11 @@ async def sync_connection(
         )
 
 
-@router.get("/connections", response_model=List[PlaidConnection])
+@router.get("/connections", response_model=List[PlaidConnectionPublic])
 async def get_user_connections(
     user_id: str = Depends(get_current_user_id),
     service: PlaidService = Depends(get_plaid_service)
-) -> List[PlaidConnection]:
+) -> List[PlaidConnectionPublic]:
     """
     Get all active Plaid connections for the authenticated user.
     """
@@ -110,7 +116,7 @@ async def get_user_connections(
 
 @router.get("/accounts", response_model=List[PlaidAccount])
 async def get_user_accounts(
-    current_user: dict = Depends(get_current_user),
+    user_id: str = Depends(get_current_user_id),
     service: PlaidService = Depends(get_plaid_service)
 ) -> List[PlaidAccount]:
     """
@@ -118,7 +124,6 @@ async def get_user_accounts(
     Returns actual account data from Plaid with real-time balances.
     """
     try:
-        user_id = current_user["user_id"]
         logger.info(f"Getting all accounts for user {user_id}")
         accounts = await service.get_user_accounts(user_id)
         return accounts
@@ -338,8 +343,11 @@ from fastapi import Query  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 from decimal import Decimal  # noqa: E402
 
+from ...core.exceptions import ExternalServiceException  # noqa: E402
 from ...services.plaid_transfer_service import get_plaid_transfer_service, PlaidTransferService  # noqa: E402
-from ...models.transfer import TransferQuote, MoneyTransfer  # noqa: E402
+from ...models.transfer import (  # noqa: E402
+    TransferQuote, MoneyTransfer, TransferQuoteRequest, TransferInitiateRequest, TransferType
+)
 
 
 class PlaidTransferQuoteRequest(BaseModel):
@@ -369,10 +377,14 @@ async def create_plaid_transfer_quote(
         logger.info(f"Creating Plaid transfer quote for user {user_id}")
         quote = await service.create_transfer_quote(
             user_id=user_id,
-            source_account_id=request.source_account_id,
-            beneficiary_id=request.beneficiary_id,
-            amount=request.amount,
-            currency=request.currency
+            request=TransferQuoteRequest(
+                source_account_id=request.source_account_id,
+                beneficiary_id=request.beneficiary_id,
+                source_amount=request.amount,
+                source_currency=request.currency,
+                destination_currency=request.currency,
+                transfer_type=TransferType.PLAID_TRANSFER
+            )
         )
         return {"success": True, "message": "Transfer quote created successfully",
                 "data": {"quote": quote.dict()}}
@@ -390,17 +402,25 @@ async def initiate_plaid_transfer(
     """Initiate a money transfer using a Plaid-connected account."""
     try:
         logger.info(f"Initiating Plaid transfer for user {user_id}")
-        transfer = await service.initiate_plaid_transfer(
+        transfer = await service.initiate_transfer(
             user_id=user_id,
             quote_id=request.quote_id,
-            purpose=request.purpose,
-            reference=request.reference,
-            recipient_message=request.recipient_message
+            request=TransferInitiateRequest(
+                quote_id=request.quote_id,
+                purpose=request.purpose,
+                reference=request.reference,
+                recipient_message=request.recipient_message
+            )
         )
         return {"success": True, "message": "Transfer initiated successfully",
                 "data": {"transfer": transfer.dict()}}
     except Exception as e:
         logger.error(f"Failed to initiate transfer: {e}")
+        if isinstance(e, ExternalServiceException):
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Your bank didn't accept this transfer. Check your activity before trying again."
+            )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
@@ -429,9 +449,8 @@ async def get_plaid_transfer_history(
     """Get transfer history for Plaid-based transfers."""
     try:
         transfers = await service.repo.get_user_transfers(user_id)
-        plaid_transfers = [t for t in transfers if t.source_account_id and t.source_account_id.startswith('plaid_')]
-        total = len(plaid_transfers)
-        paginated = plaid_transfers[offset:offset + limit]
+        total = len(transfers)
+        paginated = transfers[offset:offset + limit]
         return {"success": True, "message": "Transfer history retrieved",
                 "data": {"transfers": [t.dict() for t in paginated],
                          "total_count": total, "limit": limit, "offset": offset}}
