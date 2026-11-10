@@ -1,0 +1,31 @@
+# What `gcloud run deploy --source .` must never upload (see docs/google-cloud.md).
+# Without this file gcloud falls back to .gitignore; this list is stricter.
+
+# Secrets
+.env
+.env.*
+*.env.yaml
+cloudrun.env.yaml
+*.p8
+*.pem
+*.key
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Environments, caches and tools
+venv/
+myenv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.kiro/
+.git/
+.gitignore
+
+# Not needed to run the API
+docs/
+fintech_backend/tests/

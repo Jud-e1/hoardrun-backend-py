@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from .config.settings import get_settings
 from .config.logging import setup_logging, get_logger
 from .core.middleware import setup_middleware
+from .services.email_service import finish_request_emails
 from .core.exception_handlers import register_exception_handlers
 from .utils.json_encoder import CustomJSONEncoder
 from .database.config import check_database_connection, create_tables, initialize_database
@@ -153,6 +154,8 @@ app.json_encoder = CustomJSONEncoder
 
 # Setup middleware stack
 setup_middleware(app, settings)
+# Reply only after the emails a request started have gone out (Cloud Run slows a container once it replies)
+app.middleware("http")(finish_request_emails)
 
 # Register exception handlers
 register_exception_handlers(app)

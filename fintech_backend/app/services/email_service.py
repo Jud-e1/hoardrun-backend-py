@@ -5,6 +5,8 @@ Hoardrun's emails, sent through Resend.
   user-provided escaped.
 - Emails about things saved in the database (money in, a bank linked) are queued on the
   session and sent only after it commits, so a rolled-back change never emails anyone.
+  The request then waits for them before replying (finish_request_emails), because hosts
+  such as Cloud Run slow the container down once it has replied.
 - Without RESEND_API_KEY, development prints the email (codes included) to the server log so
   sign-up and reset can be tried locally; production logs only that an email was skipped.
 """
@@ -13,6 +15,7 @@ import asyncio
 import html
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import ContextVar
 from typing import Optional
 
 import resend
@@ -56,10 +59,36 @@ def queue(db: Session, to: str, subject: str, html_body: str, text_body: str) ->
     db.info.setdefault("hoardrun_outbox", []).append((to, subject, html_body, text_body))
 
 
+# Emails started during the current request. Hosts such as Cloud Run slow a container down as
+# soon as it replies, so the request waits for these before replying (finish_request_emails).
+_request_emails: ContextVar[Optional[list]] = ContextVar("hoardrun_request_emails", default=None)
+REQUEST_EMAIL_WAIT = 10  # seconds; a slow email provider must not hold a reply for long
+
+
 @event.listens_for(Session, "after_commit")
 def _send_outbox(session: Session) -> None:
+    started = _request_emails.get()
     for message in session.info.pop("hoardrun_outbox", []):
-        _pool.submit(deliver, *message)
+        future = _pool.submit(deliver, *message)
+        if started is not None:
+            started.append(future)
+
+
+async def finish_request_emails(request, call_next):
+    """HTTP middleware: reply only after the emails this request started have been handed to Resend."""
+    started: list = []
+    token = _request_emails.set(started)
+    try:
+        response = await call_next(request)
+    finally:
+        _request_emails.reset(token)
+    if started:
+        done = asyncio.gather(*(asyncio.wrap_future(f) for f in started), return_exceptions=True)
+        try:
+            await asyncio.wait_for(done, timeout=REQUEST_EMAIL_WAIT)
+        except asyncio.TimeoutError:
+            logger.warning("Emails were still sending when the reply went out")
+    return response
 
 
 @event.listens_for(Session, "after_rollback")

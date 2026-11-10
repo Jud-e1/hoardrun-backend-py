@@ -14,3 +14,6 @@ fintech_backend/alembic/versions/
 
 fintech_backend/.env
 .env
+
+# Google Cloud Run settings (secrets; see docs/google-cloud.md)
+cloudrun.env.yaml
