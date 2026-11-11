@@ -1,8 +1,9 @@
 """
-Companies listed on the investment opportunities page.
+Businesses listed on the private equity, real estate and fixed income pages.
 
-Every row is a company a signed-in user listed. Nothing is seeded, so an empty
-table means an empty page.
+Anyone signed in can register a business (the startup registration form). It stays
+private until a Hoardrun admin approves it; only approved listings are shown to other
+people and can take investments. Nothing is seeded, so an empty table means an empty page.
 """
 
 from datetime import datetime
@@ -13,7 +14,7 @@ from .config import Base
 
 
 class CompanyListing(Base):
-    """A company raising money, as described by the person who listed it."""
+    """A business raising money, as described by the person who listed it."""
     __tablename__ = "company_listings"
 
     id = Column(String, primary_key=True)
@@ -30,10 +31,27 @@ class CompanyListing(Base):
 
     funding_goal = Column(DECIMAL(18, 2), nullable=False)
     min_investment = Column(DECIMAL(18, 2), nullable=False)
-    # Only investments made through Hoardrun would raise this, and there is no investing flow yet
+    # What investors have put in through Hoardrun (see ListingInvestment)
     amount_raised = Column(DECIMAL(18, 2), nullable=False, default=0)
     target_return = Column(String(40))
     term = Column(String(40))
     risk_level = Column(String(12), nullable=False)
 
+    # pending: waiting for an admin; approved: public and open to investment; rejected: kept private
+    review_status = Column(String(10), nullable=False, default="pending", index=True)
+    review_note = Column(String(300))
+    reviewed_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"))
+    reviewed_at = Column(DateTime)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ListingInvestment(Base):
+    """Money a person put into an approved listing, taken from their Hoardrun cash."""
+    __tablename__ = "listing_investments"
+
+    id = Column(String, primary_key=True)
+    listing_id = Column(String, ForeignKey("company_listings.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount = Column(DECIMAL(18, 2), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

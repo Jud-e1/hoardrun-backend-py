@@ -51,6 +51,7 @@ from .api.v1.bank_links import router as plaid_router
 from .api.v1.opportunities import router as opportunities_router
 from .api.v1.venture import router as venture_router
 from .api.v1.circles import router as circles_router
+from .api.v1.admin_panel import router as admin_panel_router
 from .api.v1.markets import router as markets_router
 from .api.v1.cash import router as cash_router
 from .api.v1.assistant import router as assistant_router
@@ -185,6 +186,7 @@ app.include_router(plaid_router, prefix="/api/v1")
 app.include_router(opportunities_router, prefix="/api/v1")
 app.include_router(venture_router, prefix="/api/v1")
 app.include_router(circles_router, prefix="/api/v1")
+app.include_router(admin_panel_router, prefix="/api/v1")
 app.include_router(markets_router, prefix="/api/v1")
 app.include_router(cash_router, prefix="/api/v1")
 app.include_router(assistant_router, prefix="/api/v1")

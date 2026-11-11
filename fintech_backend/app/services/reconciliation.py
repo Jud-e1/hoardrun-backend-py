@@ -92,6 +92,7 @@ def build(db: Session) -> Report:
     from ..api.v1.brokerage import BrokerageAccount
     from ..api.v1.savings_store import AutoSavePlan, FixedDeposit, SavingsGoal
     from ..database.circle_models import CircleInvestment, CircleMember
+    from ..database.listing_models import ListingInvestment
     from ..database.market_models import MarketPosition
     from ..database.venture_models import FundShareOrder
 
@@ -100,6 +101,8 @@ def build(db: Session) -> Report:
     deposits = _sum_by_user(db, FixedDeposit.principal, FixedDeposit.user_id, FixedDeposit.status == "active")
     autosave = _sum_by_user(db, AutoSavePlan.saved_total, AutoSavePlan.user_id)
     funds = _sum_by_user(db, FundShareOrder.amount, FundShareOrder.user_id)
+    for user_id, amount in _sum_by_user(db, ListingInvestment.amount, ListingInvestment.user_id).items():
+        funds[user_id] = funds.get(user_id, ZERO) + amount
     circles = _sum_by_user(db, CircleMember.contributed, CircleMember.user_id)
     for user_id, amount in _sum_by_user(db, CircleInvestment.amount, CircleInvestment.user_id).items():
         circles[user_id] = circles.get(user_id, ZERO) + amount

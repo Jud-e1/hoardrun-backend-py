@@ -13,6 +13,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database.circle_models import CircleInvestment, CircleMember
+from ..database.listing_models import ListingInvestment
 from ..database.market_models import MarketPosition
 from ..database.models import Account, AccountStatusEnum
 from ..database.venture_models import FundShareOrder
@@ -46,6 +47,8 @@ def wealth(db: Session, user_id: str) -> Dict[str, Decimal]:
     circles = _sum(db.query(func.sum(CircleMember.contributed)).filter(CircleMember.user_id == user_id))
     # Money members put into investments their circle voted for
     circles += _sum(db.query(func.sum(CircleInvestment.amount)).filter(CircleInvestment.user_id == user_id))
+    # Money put into businesses listed on the private equity / real estate pages
+    funds += _sum(db.query(func.sum(ListingInvestment.amount)).filter(ListingInvestment.user_id == user_id))
     investments = markets + funds + circles
 
     return {
