@@ -112,7 +112,7 @@ def build_snapshot(db: Session, user_id: str) -> str:
     circles = (
         db.query(CircleMember, InvestmentCircle)
         .join(InvestmentCircle, InvestmentCircle.id == CircleMember.circle_id)
-        .filter(CircleMember.user_id == user_id)
+        .filter(CircleMember.user_id == user_id, CircleMember.status == "active")
         .all()
     )
     if circles:

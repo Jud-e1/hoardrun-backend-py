@@ -91,7 +91,7 @@ def explained_balance(db: Session, account: Account) -> Decimal:
 def build(db: Session) -> Report:
     from ..api.v1.brokerage import BrokerageAccount
     from ..api.v1.savings_store import AutoSavePlan, FixedDeposit, SavingsGoal
-    from ..database.circle_models import CircleMember
+    from ..database.circle_models import CircleInvestment, CircleMember
     from ..database.market_models import MarketPosition
     from ..database.venture_models import FundShareOrder
 
@@ -101,6 +101,8 @@ def build(db: Session) -> Report:
     autosave = _sum_by_user(db, AutoSavePlan.saved_total, AutoSavePlan.user_id)
     funds = _sum_by_user(db, FundShareOrder.amount, FundShareOrder.user_id)
     circles = _sum_by_user(db, CircleMember.contributed, CircleMember.user_id)
+    for user_id, amount in _sum_by_user(db, CircleInvestment.amount, CircleInvestment.user_id).items():
+        circles[user_id] = circles.get(user_id, ZERO) + amount
     positions = _sum_by_user(db, MarketPosition.cost_basis, MarketPosition.user_id, MarketPosition.quantity > 0)
     broker_cash = _sum_by_user(db, BrokerageAccount.uninvested_cash, BrokerageAccount.user_id)
     at_alpaca = {row[0] for row in db.query(BrokerageAccount.user_id).all()}

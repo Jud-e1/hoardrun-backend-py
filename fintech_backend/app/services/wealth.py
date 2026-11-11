@@ -12,7 +12,7 @@ from typing import Dict
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..database.circle_models import CircleMember
+from ..database.circle_models import CircleInvestment, CircleMember
 from ..database.market_models import MarketPosition
 from ..database.models import Account, AccountStatusEnum
 from ..database.venture_models import FundShareOrder
@@ -44,6 +44,8 @@ def wealth(db: Session, user_id: str) -> Dict[str, Decimal]:
     markets += _sum(db.query(func.sum(BrokerageAccount.uninvested_cash)).filter(BrokerageAccount.user_id == user_id))
     funds = _sum(db.query(func.sum(FundShareOrder.amount)).filter(FundShareOrder.user_id == user_id))
     circles = _sum(db.query(func.sum(CircleMember.contributed)).filter(CircleMember.user_id == user_id))
+    # Money members put into investments their circle voted for
+    circles += _sum(db.query(func.sum(CircleInvestment.amount)).filter(CircleInvestment.user_id == user_id))
     investments = markets + funds + circles
 
     return {
