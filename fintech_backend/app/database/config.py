@@ -172,8 +172,12 @@ def initialize_database():
     """
     from ..auth.signing_key import is_production
     if is_production():
-        from .migrate import SchemaOutOfDate, require_up_to_date
+        from .migrate import SchemaOutOfDate, require_up_to_date, upgrade_on_start
         try:
+            # Hosts without a release step (Vercel) migrate here, when MIGRATE_ON_START=1
+            migrated = upgrade_on_start()
+            if migrated:
+                logger.info("Migrations at startup: %s", migrated)
             require_up_to_date(engine)
         except SchemaOutOfDate:
             raise

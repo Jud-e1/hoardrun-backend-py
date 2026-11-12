@@ -18,10 +18,10 @@ from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 
-from .url import database_url, safe_url
+from .url import database_url, safe_url, with_driver
 
 HERE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -90,6 +90,43 @@ def adopt(engine: Engine, config: Optional[Config] = None) -> str:
         config.attributes["connection"] = connection
         command.stamp(config, "head")
     return f"adopted at {head_revision(config)}"
+
+
+# Any fixed number: the Postgres advisory lock that lets one server at a time run migrations
+MIGRATION_LOCK_ID = 74192026
+
+
+def upgrade_on_start() -> Optional[str]:
+    """Opt-in (MIGRATE_ON_START=1) for hosts with no release step, such as Vercel.
+
+    Runs at startup before the schema check. It uses the direct (unpooled) connection, since
+    migrations need a real session, and holds an advisory lock so servers starting together
+    migrate one at a time; the others then find the database already at head.
+    """
+    if os.getenv("MIGRATE_ON_START", "").strip().lower() not in ("1", "true", "yes"):
+        return None
+    raw = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("DATABASE_URL_UNPOOLED") or database_url()
+    engine = create_engine(with_driver(raw), pool_pre_ping=True)
+    try:
+        with engine.connect() as connection:
+            postgres = connection.dialect.name == "postgresql"
+            if postgres:
+                connection.execute(text("SELECT pg_advisory_lock(:id)"), {"id": MIGRATION_LOCK_ID})
+                connection.commit()
+            try:
+                config = alembic_config()
+                config.attributes["connection"] = connection
+                before = MigrationContext.configure(connection).get_current_revision()
+                command.upgrade(config, "head")
+                connection.commit()
+                after = MigrationContext.configure(connection).get_current_revision()
+            finally:
+                if postgres:
+                    connection.execute(text("SELECT pg_advisory_unlock(:id)"), {"id": MIGRATION_LOCK_ID})
+                    connection.commit()
+        return "already at head" if before == after else f"upgraded {before or 'empty'} -> {after}"
+    finally:
+        engine.dispose()
 
 
 def main(argv: list) -> int:

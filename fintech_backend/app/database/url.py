@@ -31,6 +31,12 @@ def database_url() -> str:
         if _production():
             raise DatabaseUrlError("DATABASE_URL must be set in production")
         return DEV_FALLBACK
+    return with_driver(raw)
+
+
+def with_driver(raw: str) -> str:
+    """Any Postgres URL pinned to psycopg2 (see the module notes)."""
+    raw = raw.strip()
     if raw.startswith("postgres://"):
         raw = "postgresql://" + raw[len("postgres://"):]
     if raw.startswith("postgresql://"):

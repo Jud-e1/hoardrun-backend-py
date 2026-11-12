@@ -1,0 +1,11 @@
+# Never upload to Vercel
+.env
+.env.*
+*.db
+*.sqlite
+*.sqlite3
+__pycache__/
+*.pyc
+tests/
+.pytest_cache/
+.vercel/

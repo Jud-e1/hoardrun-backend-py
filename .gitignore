@@ -17,3 +17,10 @@ fintech_backend/.env
 
 # Google Cloud Run settings (secrets; see docs/google-cloud.md)
 cloudrun.env.yaml
+# Neon connection strings (local only; see docs/google-cloud.md)
+.env.neon
+
+# Vercel CLI (local link and pulled settings)
+.vercel/
+.env.local
+.env.production*
